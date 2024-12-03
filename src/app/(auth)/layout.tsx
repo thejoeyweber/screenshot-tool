@@ -1,23 +1,31 @@
-/**
- * Auth Layout
- * Shared layout for authentication pages
- */
-import { redirect } from 'next/navigation'
+'use client'
 
-export default async function AuthLayout({
+import Link from "next/link";
+
+export default function AuthLayout({
   children,
 }: {
-  children: React.ReactNode
+  children: React.ReactNode;
 }) {
-  // TODO: Add auth check and redirect if already authenticated
-  // const isAuthenticated = await checkAuth()
-  // if (isAuthenticated) redirect('/dashboard')
-
   return (
-    <div className="min-h-screen flex items-center justify-center">
-      <div className="w-full max-w-md space-y-8 px-4">
-        {children}
-      </div>
+    <div className="min-h-screen flex flex-col">
+      <header className="h-16 flex items-center px-6 border-b">
+        <Link href="/" className="font-bold text-xl">
+          Screenshot Tool
+        </Link>
+      </header>
+
+      <main className="flex-1 flex items-center justify-center p-4">
+        <div className="w-full max-w-md">
+          {children}
+        </div>
+      </main>
+
+      <footer className="h-16 flex items-center justify-center px-6 border-t">
+        <p className="text-sm text-muted-foreground">
+          © 2024 Screenshot Tool. All rights reserved.
+        </p>
+      </footer>
     </div>
-  )
+  );
 } 

@@ -27,6 +27,6 @@ export async function updateUser(id: string, user: Partial<User>): Promise<User 
 }
 
 export async function deleteUser(id: string): Promise<boolean> {
-  const result = await db.delete(users).where(eq(users.id, id))
-  return result.rowCount > 0
+  const result = await db.delete(users).where(eq(users.id, id)).returning()
+  return result.length > 0
 } 

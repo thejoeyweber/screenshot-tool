@@ -77,16 +77,36 @@
 - Created database queries structure
 - Added migrations directory
 
-### Next Steps
-- Install missing dependencies:
-  - @vercel/postgres
-  - drizzle-orm
-  - drizzle-zod
-  - @supabase/supabase-js
-  - @clerk/nextjs
-- Set up database migrations
-- Implement authentication flow
-- Complete API routes implementation
-- Add error handling and logging
-- Configure testing framework
-- Set up CI/CD pipeline 
+## January 2024
+
+### Development Environment Updates
+- Switched to local Supabase development setup
+  - Added Docker-based local instance
+  - Updated documentation for local development workflow
+  - Configured Supabase CLI integration
+
+### Layout System Restructuring (January 8, 2024)
+- Implemented shadcn's block-based layout structure
+  - Restructured dashboard layout using shadcn patterns
+  - Added proper sidebar implementation with collapsible states
+  - Integrated breadcrumb navigation in header
+- Cleaned up component hierarchy
+  - Removed legacy MainLayout and Sidebar components
+  - Consolidated layout components under proper directory structure
+  - Added placeholder navigation content for future customization
+- Improved layout responsiveness
+  - Added proper mobile layout handling
+  - Implemented collapsible sidebar with icon-only state
+  - Enhanced header responsiveness with proper spacing
+- Next steps:
+  - Customize navigation content for screenshot tool needs
+  - Implement proper team/user management UI
+  - Add screenshot-specific tools to sidebar
+  - Connect layout with actual application state
+
+## Next Steps:
+- [ ] Complete Supabase local development setup
+- [ ] Implement authentication flow
+- [ ] Add screenshot capture functionality
+- [ ] Customize navigation for screenshot tool needs
+- [ ] Implement team/project management features

@@ -1,154 +1,80 @@
-# Screenshot Tool Project Structure
+# Project Structure
 
-## Overview
-This document outlines the organization and purpose of each directory and key file in the Screenshot Tool project.
+## Core Directories
 
-## Directory Structure
+### `/src`
+- **`/app`** - Next.js App Router pages and layouts
+  - `/api` - API routes
+    - `/validate-url` - Domain validation endpoint
+    - `/robots` - Robots.txt fetching endpoint
+    - `/sitemap` - Sitemap XML processing endpoint
+    - `/fetch-sitemaps` - Sitemap discovery endpoint
+  - `/sitemap` - Sitemap processing page
+  
+- **`/components`** - React components
+  - `/sitemap` - Sitemap-related components
+    - `UrlTree.tsx` - URL tree visualization
+  - `/ui` - Reusable UI components
+  - `/url-input` - URL input and processing components
 
-### `src/`
-Main source directory containing all application code.
+- **`/services`** - Business logic and data processing
+  - `sitemap.ts` - Sitemap discovery and processing service
 
-#### `app/`
-Next.js 14 app router directory.
-- **`(auth)/`** - Authentication routes
-  - `layout.tsx` - Auth pages layout
-  - `login/page.tsx` - Login page
-  - `register/page.tsx` - Registration page
-- **`(dashboard)/`** - Protected dashboard routes
-  - `layout.tsx` - Dashboard layout with shadcn sidebar integration
-  - `page.tsx` - Dashboard home
-  - `projects/` - Project management
-    - `page.tsx` - Projects list
-    - `[projectId]/page.tsx` - Project details
-  - `organization/` - Organization management
-    - `page.tsx` - Organization details
-    - `settings/page.tsx` - Organization settings
-- **`api/`** - API routes
-  - `screenshots/route.ts` - Screenshot operations
-  - `projects/route.ts` - Project operations
-  - `webhooks/route.ts` - External service webhooks
-- `layout.tsx` - Root layout with providers
-- `page.tsx` - Home page
-- `globals.css` - Global styles and theme variables
+- **`/utils`** - Utility functions
+  - `website-utils.ts` - Web scraping and URL processing utilities
 
-#### `components/`
-React components organized by purpose.
-- **`ui/`** - Reusable UI components and shadcn-ui components
-  - `screenshot-canvas.tsx` - Canvas component
-  - `sidebar.tsx` - Base sidebar components
-  - Various other shadcn-ui components
-- **`layout/`** - Layout components
-  - `app-sidebar.tsx` - Main application sidebar
-  - `search-form.tsx` - Sidebar search
-  - `version-switcher.tsx` - Version selection
-  - `nav-main.tsx` - Main navigation items
-  - `nav-projects.tsx` - Projects navigation
-  - `nav-user.tsx` - User navigation
-  - `team-switcher.tsx` - Team selection
-  - `Header.tsx` - Navigation header
-  - `Footer.tsx` - Status and controls
-- **`providers/`** - Context providers
-  - `theme-provider.tsx` - Theme context
-- **`screenshot/`** - Screenshot components
-  - `ToolBar.tsx` - Annotation tools
-  - `ColorPicker.tsx` - Color selection
-  - `AnnotationLayer.tsx` - Annotation canvas
+- **`/types`** - TypeScript type definitions
+  - `api.ts` - API response types
+  - `sitemap.ts` - Sitemap-related types
 
-#### `db/`
-Database configuration and schemas.
-- **`schema/`** - Table definitions
-  - `users.ts` - Users table
-  - `organizations.ts` - Organizations table
-  - `projects.ts` - Projects table
-  - `media.ts` - Media table
-  - `screenshots.ts` - Screenshots table
-- **`queries/`** - Database operations
-  - `users.ts` - User operations
-  - `organizations.ts` - Organization operations
-  - `projects.ts` - Project operations
-- **`migrations/`** - Schema migrations
+### `/documentation`
+- **`/feature`** - Feature documentation
+  - `1-mvp-web-screencapture.md` - MVP feature specification
+- `structure.md` - Project structure documentation
+- `project-log.md` - Development activity log
 
-#### `lib/`
-Core utilities and shared libraries.
-- `utils.ts` - Common utilities
-- `fonts.ts` - Font configuration
+## Key Features
 
-#### `hooks/`
-Custom React hooks.
-- `useScreenshot.ts` - Screenshot management
-- `useHotkeys.ts` - Keyboard shortcuts
-- `useAnnotation.ts` - Annotation state
-- `useCanvas.ts` - Canvas operations
+### Sitemap Processing
+- Domain resolution with www/non-www handling
+- Robots.txt parsing for sitemap discovery
+- XML sitemap validation and parsing
+- URL deduplication and organization
 
-#### `types/`
-TypeScript type definitions.
-- `index.ts` - Shared types
-- `screenshot.ts` - Screenshot types
-- `env.d.ts` - Environment variables
+### API Routes
+- URL validation and domain resolution
+- Robots.txt fetching and parsing
+- Sitemap XML processing
+- Error handling and status codes
 
-#### `store/`
-State management using Zustand.
-- `screenshot-store.ts` - Screenshot state
+### Frontend
+- URL input and validation
+- Sitemap discovery and processing
+- URL tree visualization
+- Error handling and loading states
 
-#### `services/`
-Business logic and integrations.
-- `screenshot.ts` - Screenshot operations
-- `annotation.ts` - Annotation handling
-- `export.ts` - Export functionality
-- `storage.ts` - Storage operations
+## Development Guidelines
 
-#### `config/`
-Configuration files.
-- `constants.ts` - App constants
-- `supabase.ts` - Supabase client
-- `clerk.ts` - Auth configuration
-- `api.ts` - API configuration
+### Code Organization
+- Feature-based component organization
+- Shared utilities in `/utils`
+- Business logic in `/services`
+- API routes in `/app/api`
 
-### Root Files
-- `middleware.ts` - Auth protection
-- `.env.local` - Environment variables
-- `drizzle.config.ts` - Database config
+### TypeScript
+- Strict type checking enabled
+- Interface-first development
+- Proper null handling
+- Type-safe API responses
 
-## Key Design Decisions
+### Error Handling
+- Consistent error response format
+- Proper HTTP status codes
+- Detailed error logging
+- User-friendly error messages
 
-### Route Organization
-- Auth routes in `(auth)` group
-- Protected routes in `(dashboard)` group
-- API routes follow REST conventions
-
-### Database Design
-- Schemas using Drizzle ORM
-- Type-safe queries with Zod validation
-- Migrations for version control
-
-### Authentication
-- Clerk for auth management
-- Protected routes via middleware
-- Auth state in layout components
-
-### State Management
-- Zustand for global state
-- React Query for server state
-- Local state with hooks
-
-### API Structure
-- Route handlers in `api/`
-- Service layer for business logic
-- Type-safe requests and responses
-
-### Layout System
-- Shadcn-based component architecture
-- Modular sidebar with distinct navigation sections
-- Collapsible and responsive design
-- Theme-aware with CSS variable system
-
-## File Naming Conventions
-- React components: PascalCase
-- Utilities and hooks: camelCase
-- Configuration: kebab-case
-- All TypeScript: `.ts` or `.tsx`
-
-## Import Conventions
-- Alias imports from `@/`
-- Group by: React, external, internal
-- Relative for closely related
+### Testing
+- Unit tests for utilities
+- Integration tests for services
+- API endpoint testing
+- Component testing

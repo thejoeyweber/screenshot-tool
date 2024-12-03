@@ -13,8 +13,9 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { AlertCircle, Loader2, Upload, List, Globe, FileWarning } from "lucide-react"
+import { AlertCircle, Loader2, Upload, List, Globe, FileWarning, FileCheck } from "lucide-react"
 import { Input } from "@/components/ui/input"
+import { Switch } from "@/components/ui/switch"
 import { fetchSitemap, organizeUrlTree, type SitemapUrl } from "@/services/sitemap"
 import { UrlTree } from "@/components/sitemap/UrlTree"
 import { useUrlSession } from "@/hooks/useUrlSession"
@@ -72,21 +73,23 @@ export default function SitemapPage() {
   const [urlGroups, setUrlGroups] = useState<Record<string, SitemapUrl[]>>({})
   const [selectedUrls, setSelectedUrls] = useState<Set<string>>(new Set())
   const [availableSitemaps, setAvailableSitemaps] = useState<string[]>([])
+  const [enabledSitemaps, setEnabledSitemaps] = useState<Set<string>>(new Set())
 
   const loadSitemap = async (targetUrl: string) => {
     setLoading(true)
     setError(undefined)
     setErrorType(undefined)
-    setAvailableSitemaps([])
     
     try {
-      const data = await fetchSitemap(targetUrl)
+      const data = await fetchSitemap(targetUrl, enabledSitemaps)
       if (data.error) {
         setError(data.error)
         setErrorType(data.errorType)
         setUrlGroups({})
         if (data.availableSitemaps) {
           setAvailableSitemaps(data.availableSitemaps)
+          // Auto-enable all sitemaps initially
+          setEnabledSitemaps(new Set(data.availableSitemaps))
         }
       } else {
         const groups = organizeUrlTree(data.urls)
@@ -95,6 +98,10 @@ export default function SitemapPage() {
         setSelectedUrls(new Set(data.urls.map(u => u.loc)))
         if (data.availableSitemaps) {
           setAvailableSitemaps(data.availableSitemaps)
+          // Auto-enable all sitemaps initially if not already set
+          if (enabledSitemaps.size === 0) {
+            setEnabledSitemaps(new Set(data.availableSitemaps))
+          }
         }
       }
     } catch (err) {
@@ -173,6 +180,19 @@ export default function SitemapPage() {
     }
   }
 
+  const handleSitemapToggle = (sitemapUrl: string) => {
+    const newEnabled = new Set(enabledSitemaps)
+    if (newEnabled.has(sitemapUrl)) {
+      newEnabled.delete(sitemapUrl)
+    } else {
+      newEnabled.add(sitemapUrl)
+    }
+    setEnabledSitemaps(newEnabled)
+    
+    // TODO: Refetch URLs considering only enabled sitemaps
+    loadSitemap(url)
+  }
+
   return (
     <div className="container mx-auto p-6 space-y-6">
       <div className="flex items-center justify-between">
@@ -219,24 +239,6 @@ export default function SitemapPage() {
                       </AlertDescription>
                     </Alert>
 
-                    {availableSitemaps.length > 0 && (
-                      <div className="border rounded-lg p-4 space-y-2">
-                        <h3 className="font-medium">Available Sitemaps:</h3>
-                        <div className="space-y-2">
-                          {availableSitemaps.map((sitemap, index) => (
-                            <Button
-                              key={sitemap}
-                              variant="outline"
-                              className="w-full justify-start text-left font-mono text-sm"
-                              onClick={() => handleSitemapSelect(sitemap)}
-                            >
-                              {sitemap}
-                            </Button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
                     {showAlternatives && (
                       <div className="border rounded-lg p-4 space-y-4">
                         <h3 className="font-medium">Alternative Options:</h3>
@@ -259,6 +261,31 @@ export default function SitemapPage() {
           )}
         </CardContent>
       </Card>
+
+      {availableSitemaps.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Available Sitemaps</CardTitle>
+            <CardDescription>
+              Enable or disable specific sitemaps to filter the pages shown below
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {availableSitemaps.map((sitemap) => (
+              <div key={sitemap} className="flex items-center justify-between py-2">
+                <div className="flex items-center space-x-2">
+                  <FileCheck className="h-4 w-4 text-muted-foreground" />
+                  <span className="font-mono text-sm">{sitemap}</span>
+                </div>
+                <Switch
+                  checked={enabledSitemaps.has(sitemap)}
+                  onCheckedChange={() => handleSitemapToggle(sitemap)}
+                />
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       {loading && (
         <div className="flex items-center justify-center min-h-[200px]">

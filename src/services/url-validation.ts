@@ -77,19 +77,19 @@ export function extractDomain(url: string): string {
  */
 export async function checkUrlAccessibility(url: string): Promise<ValidationResult> {
   try {
-    const response = await fetch(url, {
-      method: 'HEAD',
-      mode: 'no-cors'
+    const response = await fetch('/api/validate-url', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ url })
     });
     
-    return {
-      isValid: true,
-      normalizedUrl: url
-    };
+    return await response.json();
   } catch (error) {
     return {
       isValid: false,
-      error: "URL is not accessible"
+      error: "Failed to validate URL"
     };
   }
 } 

@@ -1,24 +1,70 @@
-## Development Rules and Guidelines
+# MVP Web Screenshot Tool
 
-1. **Content Preservation**
-   - Do not modify existing UI text, headlines, or descriptions unless specifically requested
-   - Preserve all current UI structure and layout when making functional changes
-   - When adding new features, match the existing content style and tone
+## Phase 1: URL Collection and Validation ✓
 
-2. **Code Structure**
-   - Follow the established component architecture
-   - Keep components focused and single-responsibility
-   - Use TypeScript for all new code
-   - Maintain consistent file structure as defined in structure.md
+### Sitemap Processing
+- [x] Domain resolution with www/non-www handling
+- [x] Robots.txt parsing for sitemap discovery
+- [x] XML sitemap validation and parsing
+- [x] URL deduplication across multiple sitemaps
+- [x] Error handling and validation
+- [x] Frontend URL tree visualization
 
-3. **UI/UX Standards**
-   - Use shadcn/ui components for consistency
-   - Follow existing design patterns
-   - Maintain responsive design principles
-   - Ensure accessibility standards are met
+### API Routes
+- [x] URL validation endpoint
+- [x] Robots.txt fetching endpoint
+- [x] Sitemap XML processing endpoint
+- [x] Error handling with proper status codes
 
-4. **Performance**
-   - Optimize image processing
-   - Use proper loading states
-   - Implement error boundaries
-   - Consider pagination for large datasets 
+## Phase 2: Screenshot Capture (Next)
+
+### Core Functionality
+- [ ] Headless browser integration
+- [ ] Screenshot capture service
+- [ ] Image processing and optimization
+- [ ] Progress tracking and status updates
+
+### Frontend Features
+- [ ] Screenshot preview
+- [ ] Capture settings configuration
+- [ ] Batch processing controls
+- [ ] Error recovery and retry options
+
+## Phase 3: Image Management
+
+### Storage and Organization
+- [ ] Image storage system
+- [ ] Metadata management
+- [ ] Version control
+- [ ] Export functionality
+
+### User Interface
+- [ ] Gallery view
+- [ ] Search and filter
+- [ ] Bulk operations
+- [ ] Download options
+
+## Technical Requirements
+
+### Performance
+- [x] Efficient URL processing
+- [x] Proper error handling
+- [ ] Parallel processing
+- [ ] Resource management
+
+### Security
+- [x] Input validation
+- [x] Rate limiting
+- [ ] Access control
+- [ ] Data protection
+
+### Scalability
+- [x] Modular architecture
+- [ ] Queue system
+- [ ] Caching
+- [ ] Load balancing
+
+## Current Status
+- Phase 1 completed with robust URL processing
+- Ready to begin Phase 2 implementation
+- Architecture supports future expansions 

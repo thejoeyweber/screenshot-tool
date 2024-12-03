@@ -21,6 +21,7 @@ export interface SitemapData {
   errorType?: 'ACCESS_ERROR' | 'SITEMAP_NOT_FOUND' | 'PARSE_ERROR'
   resolvedDomain?: string
   availableSitemaps?: string[]
+  urlsBySource?: Record<string, SitemapUrl[]>
 }
 
 interface SitemapEntry {
@@ -29,76 +30,50 @@ interface SitemapEntry {
 }
 
 /**
- * Safe fetch that handles CORS and various response types
- */
-async function safeFetch(url: string, options: RequestInit = {}): Promise<Response> {
-  const defaultOptions: RequestInit = {
-    mode: 'cors',
-    credentials: 'omit',
-    redirect: 'follow',
-    headers: {
-      'Accept': 'text/html,application/xml,application/xhtml+xml,text/xml;q=0.9',
-      'User-Agent': 'Mozilla/5.0 (compatible; ScreenshotBot/1.0)'
-    }
-  }
-
-  try {
-    const response = await fetch(url, { ...defaultOptions, ...options })
-    return response
-  } catch (error) {
-    // If CORS fails, we'll still consider the site accessible
-    // The error just means we can't directly fetch from browser
-    if (error instanceof TypeError && error.message.includes('CORS')) {
-      return new Response(null, { status: 200 })
-    }
-    throw error
-  }
-}
-
-/**
  * Attempts to resolve the correct domain with various prefixes
  */
 async function resolveDomain(url: string): Promise<string> {
   // Normalize the URL
   let domain = url.toLowerCase().trim()
-  if (!domain.startsWith('http')) {
-    domain = 'https://' + domain
-  }
-
+  
   try {
-    // Create URL object to validate and get origin
-    const urlObj = new URL(domain)
-    // For WordPress sites, we can assume they're accessible if the domain is valid
-    return urlObj.origin
+    // Validate and get canonical domain
+    const response = await fetch(`/api/validate-url?url=${encodeURIComponent(domain)}`)
+    if (response.ok) {
+      const data = await response.json()
+      if (data.success && data.data.normalizedUrl) {
+        console.debug('Successfully resolved canonical domain:', data.data.normalizedUrl)
+        return data.data.normalizedUrl
+      }
+    }
+    
+    throw new Error('Could not validate domain')
   } catch (error) {
-    throw new Error('Invalid URL format. Please enter a valid website address.')
+    throw new Error('Invalid URL format or domain is inaccessible. Please enter a valid website address.')
   }
 }
 
 /**
  * Attempts to find sitemap URLs from robots.txt
- * Never throws, always returns empty array on any error
  */
 async function findSitemapsInRobots(domain: string): Promise<string[]> {
   try {
-    const robotsUrl = new URL('/robots.txt', domain).href
-    const response = await safeFetch(robotsUrl, {
-      // Don't wait too long for robots.txt
-      signal: AbortSignal.timeout(3000)
-    })
+    const apiUrl = `/api/robots?url=${encodeURIComponent(domain)}`
+    const response = await fetch(apiUrl)
     
-    // Any failure just returns empty array
-    if (!response.ok) return []
+    if (!response.ok) {
+      console.debug('No robots.txt found at:', domain)
+      return []
+    }
     
-    const robotsText = await response.text()
-    // Check if it looks like a robots.txt file
-    if (!robotsText.includes('User-agent:')) return []
+    const { data: robotsText } = await response.json()
+    if (!robotsText?.includes('User-agent:')) return []
 
     const sitemapMatches = robotsText.match(/Sitemap:\s*(.+)/gi)
     
     if (sitemapMatches && sitemapMatches.length > 0) {
       return sitemapMatches
-        .map(match => {
+        .map((match: string) => {
           try {
             const url = match.replace(/Sitemap:\s*/i, '').trim()
             // Validate it's a proper URL
@@ -108,11 +83,10 @@ async function findSitemapsInRobots(domain: string): Promise<string[]> {
             return ''
           }
         })
-        .filter(url => url && url.endsWith('.xml'))
+        .filter((url: string) => url && url.endsWith('.xml'))
     }
   } catch (error) {
-    // Log but don't throw
-    console.warn('Error checking robots.txt (non-critical):', error)
+    console.debug('Error checking robots.txt:', error)
   }
   
   return []
@@ -121,174 +95,257 @@ async function findSitemapsInRobots(domain: string): Promise<string[]> {
 /**
  * Fetches XML content and validates it's a sitemap
  */
-async function fetchAndValidateXml(url: string): Promise<{ content: string | null, hasUrls: boolean }> {
+interface SitemapValidationResult {
+  content: string;
+  hasUrls: boolean;
+}
+
+export async function fetchAndValidateXml(url: string): Promise<SitemapValidationResult | null> {
   try {
-    console.log('Attempting to fetch:', url)
-    const response = await safeFetch(url, {
-      // Add timeout to prevent hanging
-      signal: AbortSignal.timeout(5000)
-    })
+    const apiUrl = `/api/sitemap?url=${encodeURIComponent(url)}`
+    const response = await fetch(apiUrl)
+    
+    // Skip 404s silently - they're expected when checking variants
+    if (response.status === 404) {
+      return null
+    }
     
     if (!response.ok) {
-      console.log('Response not OK for:', url, 'Status:', response.status)
-      return { content: null, hasUrls: false }
+      console.debug('Error fetching sitemap:', url, response.status)
+      throw new Error('Failed to fetch sitemap')
     }
+
+    const { data: xmlText } = await response.json()
     
-    const xmlText = await response.text()
-    console.log('Fetched content length:', xmlText.length, 'for:', url)
-    
-    // Basic XML validation
-    if (!xmlText.trim()) {
-      console.log('Empty response for:', url)
-      return { content: null, hasUrls: false }
-    }
-    
-    // Check for common sitemap XML patterns
-    const isSitemap = xmlText.includes('<?xml') && 
-      (xmlText.includes('urlset') || xmlText.includes('sitemapindex'))
-    
-    if (!isSitemap) {
-      console.log('Not a valid sitemap XML for:', url)
-      return { content: null, hasUrls: false }
+    // Basic validation
+    if (!xmlText?.trim()) {
+      return null
     }
     
     // Check if the sitemap actually contains URLs or sub-sitemaps
     const hasUrls = xmlText.includes('<loc>') && 
       (xmlText.includes('</url>') || xmlText.includes('</sitemap>'))
     
-    console.log('Sitemap validation result for:', url, 'Has URLs:', hasUrls)
-    
-    return { 
+    return {
       content: xmlText,
       hasUrls
     }
   } catch (error) {
-    // More detailed error logging
-    if (error instanceof Error) {
-      console.warn('Error fetching sitemap:', url, 'Error:', error.name, error.message)
-    } else {
-      console.warn('Unknown error fetching sitemap:', url, error)
+    console.debug('Error fetching sitemap:', url, error)
+    throw error
+  }
+}
+
+/**
+ * Parses sitemap XML response
+ */
+function parseSitemapResponse(xmlText: string, domain: string) {
+  const parser = new XMLParser({
+    ignoreAttributes: false,
+    parseAttributeValue: true,
+  })
+  
+  try {
+    const data = parser.parse(xmlText)
+    
+    // Handle sitemap index files
+    if (data.sitemapindex) {
+      const sitemaps = Array.isArray(data.sitemapindex.sitemap)
+        ? data.sitemapindex.sitemap
+        : [data.sitemapindex.sitemap]
+      
+      return {
+        urls: [],
+        availableSitemaps: sitemaps.map((s: SitemapEntry) => s.loc)
+      }
     }
-    return { content: null, hasUrls: false }
+    
+    // Handle regular sitemaps
+    if (data.urlset) {
+      const urls = Array.isArray(data.urlset.url)
+        ? data.urlset.url
+        : [data.urlset.url]
+      
+      return {
+        urls: urls.map((u: SitemapUrl) => ({
+          loc: u.loc,
+          lastmod: u.lastmod,
+          priority: u.priority,
+          changefreq: u.changefreq
+        }))
+      }
+    }
+    
+    throw new Error('Invalid sitemap format')
+  } catch (error) {
+    console.debug('Error parsing sitemap XML:', error)
+    throw error
   }
 }
 
 /**
  * Fetches and parses a sitemap from a given URL
  */
-export async function fetchSitemap(url: string): Promise<SitemapData> {
+export async function fetchSitemap(url: string, enabledSitemaps?: Set<string>): Promise<SitemapData> {
   try {
     // First resolve the correct domain
     const resolvedDomain = await resolveDomain(url)
-    console.log('Resolved domain:', resolvedDomain)
+    console.debug('Resolved domain:', resolvedDomain)
     
-    // Common sitemap locations to try, ordered by commonality
+    // Common sitemap locations to try, ordered by priority
     const commonLocations = [
       '/sitemap.xml',           // Most common standard location
       '/sitemap_index.xml',     // Common index location
       '/sitemapindex.xml',      // Alternative index name
       '/sitemap/sitemap.xml',   // Common subfolder location
-      '/sitemap/index.xml',     // Alternative subfolder index
       '/sitemap-index.xml',     // Hyphenated variant
-      // WordPress-specific locations
-      '/wp-sitemap.xml',        // WP alternate
-      '/post-sitemap.xml',      // WP posts
-      '/page-sitemap.xml',      // WP pages
-      '/category-sitemap.xml'   // WP categories
     ]
     
-    // Try to get sitemap URLs from robots.txt, but don't wait too long
-    let robotsSitemaps: string[] = []
-    try {
-      robotsSitemaps = await Promise.race([
-        findSitemapsInRobots(resolvedDomain),
-        new Promise<string[]>(resolve => setTimeout(() => resolve([]), 3000))
-      ])
-      console.log('Found sitemaps in robots.txt:', robotsSitemaps)
-    } catch (error) {
-      console.warn('Error checking robots.txt:', error)
-      robotsSitemaps = []
-    }
+    // Try to get sitemap URLs from robots.txt first
+    const robotsSitemaps = await findSitemapsInRobots(resolvedDomain)
+    console.debug('Found sitemaps in robots.txt:', robotsSitemaps)
 
+    // If no sitemaps found in robots.txt and domain doesn't start with www,
+    // try www prefix version
+    if (robotsSitemaps.length === 0 && !new URL(resolvedDomain).hostname.startsWith('www.')) {
+      const wwwDomain = new URL(resolvedDomain)
+      wwwDomain.hostname = 'www.' + wwwDomain.hostname
+      const wwwRobotsSitemaps = await findSitemapsInRobots(wwwDomain.origin)
+      if (wwwRobotsSitemaps.length > 0) {
+        console.debug('Found sitemaps in www robots.txt:', wwwRobotsSitemaps)
+        robotsSitemaps.push(...wwwRobotsSitemaps)
+      }
+    }
+    
     // Keep track of all attempted URLs and found sitemaps
     const attemptedUrls = new Set<string>()
     const foundSitemaps: string[] = []
+    const urlsBySource: Record<string, SitemapUrl[]> = {}
+    const uniqueUrls = new Set<string>() // Track unique URLs by their loc
     
     // Function to try a sitemap URL
     async function trySitemapUrl(sitemapUrl: string): Promise<SitemapData | null> {
       if (attemptedUrls.has(sitemapUrl)) {
-        console.log('Already attempted:', sitemapUrl)
+        console.debug('Already attempted:', sitemapUrl)
         return null
       }
       
-      console.log('Trying sitemap URL:', sitemapUrl)
+      // Skip if sitemaps are enabled and this one isn't in the list
+      if (enabledSitemaps && enabledSitemaps.size > 0 && !enabledSitemaps.has(sitemapUrl)) {
+        console.debug('Skipping disabled sitemap:', sitemapUrl)
+        return null
+      }
+      
+      console.debug('Trying sitemap URL:', sitemapUrl)
       attemptedUrls.add(sitemapUrl)
       
-      const { content, hasUrls } = await fetchAndValidateXml(sitemapUrl)
-      if (content) {
+      try {
+        const validationResult = await fetchAndValidateXml(sitemapUrl)
+        if (!validationResult) {
+          return null
+        }
+
+        const { content, hasUrls } = validationResult
         foundSitemaps.push(sitemapUrl)
-        console.log('Found valid sitemap at:', sitemapUrl, 'Has URLs:', hasUrls)
+        console.debug('Found valid sitemap at:', sitemapUrl, 'Has URLs:', hasUrls)
         
         if (hasUrls) {
           const result = parseSitemapResponse(content, resolvedDomain)
-          console.log('Parsed URLs count:', result.urls.length)
           
-          if (result.urls.length > 0) {
-            return {
-              ...result,
-              availableSitemaps: foundSitemaps
+          // Deduplicate URLs while preserving the newest lastmod
+          if (result.urls?.length > 0) {
+            const newUrls = result.urls.filter((url: SitemapUrl) => {
+              if (!uniqueUrls.has(url.loc)) {
+                uniqueUrls.add(url.loc)
+                return true
+              }
+              // Update lastmod if newer
+              const existingUrl = Object.values(urlsBySource)
+                .flat()
+                .find(u => u.loc === url.loc)
+              if (existingUrl && url.lastmod && (!existingUrl.lastmod || new Date(url.lastmod) > new Date(existingUrl.lastmod))) {
+                existingUrl.lastmod = url.lastmod
+              }
+              return false
+            })
+            
+            if (newUrls.length > 0) {
+              urlsBySource[sitemapUrl] = newUrls
+              return {
+                urls: newUrls,
+                availableSitemaps: foundSitemaps,
+                urlsBySource
+              }
             }
           }
           
           if (result.availableSitemaps?.length) {
-            console.log('Found sub-sitemaps:', result.availableSitemaps)
-            // Try the first few sub-sitemaps from an index
-            for (const subSitemapUrl of result.availableSitemaps.slice(0, 3)) {
-              console.log('Trying sub-sitemap:', subSitemapUrl)
+            // Try sub-sitemaps in sequence to avoid overwhelming the server
+            for (const subSitemapUrl of result.availableSitemaps) {
               const subResult = await trySitemapUrl(subSitemapUrl)
               if (subResult?.urls.length) {
                 return {
                   ...subResult,
-                  availableSitemaps: result.availableSitemaps
+                  availableSitemaps: result.availableSitemaps,
+                  urlsBySource
                 }
               }
             }
           }
         }
+      } catch (error) {
+        console.debug('Error trying sitemap URL:', sitemapUrl, error)
       }
       return null
     }
     
-    // Try all possible sitemap URLs
+    // Try robots.txt sitemaps first, then common locations
     const allSitemapUrls = [
       ...robotsSitemaps,
       ...commonLocations.map(path => new URL(path, resolvedDomain).href)
     ]
     
-    console.log('Attempting sitemap URLs:', allSitemapUrls)
+    console.debug('Attempting sitemap URLs:', allSitemapUrls)
     
+    // Process sitemaps sequentially to avoid overwhelming the server
+    let foundValidUrls = false
     for (const sitemapUrl of allSitemapUrls) {
       const result = await trySitemapUrl(sitemapUrl)
-      if (result) {
-        console.log('Successfully found sitemap with URLs:', sitemapUrl)
-        return result
+      if (result?.urls.length) {
+        foundValidUrls = true
+      }
+    }
+
+    // If we found any URLs, return them all
+    if (foundValidUrls) {
+      return {
+        urls: Array.from(uniqueUrls).map(loc => {
+          const urlData = Object.values(urlsBySource)
+            .flat()
+            .find(u => u.loc === loc)
+          return urlData || { loc }
+        }),
+        resolvedDomain,
+        availableSitemaps: foundSitemaps,
+        urlsBySource
       }
     }
 
     // If we found sitemaps but no URLs, return that info
     if (foundSitemaps.length > 0) {
-      console.log('Found sitemaps but no URLs:', foundSitemaps)
+      console.debug('Found sitemaps but no URLs:', foundSitemaps)
       return {
         urls: [],
         resolvedDomain,
         availableSitemaps: foundSitemaps,
+        urlsBySource,
         error: 'Found sitemaps but they contained no URLs. Try using a specific sitemap.',
         errorType: 'PARSE_ERROR'
       }
     }
 
     // No sitemaps found
-    console.log('No sitemaps found at all')
+    console.debug('No sitemaps found at all')
     return {
       urls: [],
       resolvedDomain,
@@ -299,60 +356,8 @@ export async function fetchSitemap(url: string): Promise<SitemapData> {
     console.error('Error in fetchSitemap:', error)
     return {
       urls: [],
-      error: error instanceof Error ? error.message : 'Failed to access website',
+      error: error instanceof Error ? error.message : 'Failed to access the website',
       errorType: 'ACCESS_ERROR'
-    }
-  }
-}
-
-/**
- * Parses sitemap XML response
- */
-function parseSitemapResponse(xmlText: string, resolvedDomain: string): SitemapData {
-  const parser = new XMLParser({
-    ignoreAttributes: false,
-    parseAttributeValue: true,
-  })
-
-  try {
-    const result = parser.parse(xmlText)
-    let urls: SitemapUrl[] = []
-    
-    if (result.urlset?.url) {
-      // Standard sitemap
-      urls = Array.isArray(result.urlset.url) 
-        ? result.urlset.url 
-        : [result.urlset.url]
-    } else if (result.sitemapindex?.sitemap) {
-      // Sitemap index
-      const sitemaps: SitemapEntry[] = Array.isArray(result.sitemapindex.sitemap)
-        ? result.sitemapindex.sitemap
-        : [result.sitemapindex.sitemap]
-      
-      return {
-        urls: [],
-        resolvedDomain,
-        availableSitemaps: sitemaps.map(s => s.loc).filter(Boolean),
-        error: 'Multiple sitemaps available. Using first sitemap.',
-        errorType: 'PARSE_ERROR'
-      }
-    }
-
-    // Normalize URL objects
-    urls = urls.map(url => ({
-      loc: url.loc,
-      lastmod: url.lastmod,
-      priority: url.priority,
-      changefreq: url.changefreq
-    }))
-
-    return { urls, resolvedDomain }
-  } catch (error) {
-    return {
-      urls: [],
-      resolvedDomain,
-      error: 'Failed to parse sitemap XML',
-      errorType: 'PARSE_ERROR'
     }
   }
 }
@@ -379,4 +384,4 @@ export function organizeUrlTree(urls: SitemapUrl[]) {
   })
   
   return tree
-} 
+}

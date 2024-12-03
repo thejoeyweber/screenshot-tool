@@ -15,7 +15,8 @@ Next.js 14 app router directory.
   - `login/page.tsx` - Login page
   - `register/page.tsx` - Registration page
 - **`(dashboard)/`** - Protected dashboard routes
-  - `layout.tsx` - Dashboard layout with auth check
+  - `layout.tsx` - Dashboard layout with shadcn sidebar integration
+  - `page.tsx` - Dashboard home
   - `projects/` - Project management
     - `page.tsx` - Projects list
     - `[projectId]/page.tsx` - Project details
@@ -28,18 +29,24 @@ Next.js 14 app router directory.
   - `webhooks/route.ts` - External service webhooks
 - `layout.tsx` - Root layout with providers
 - `page.tsx` - Home page
-- `globals.css` - Global styles
+- `globals.css` - Global styles and theme variables
 
 #### `components/`
 React components organized by purpose.
 - **`ui/`** - Reusable UI components and shadcn-ui components
   - `screenshot-canvas.tsx` - Canvas component
-  - Various shadcn-ui components
+  - `sidebar.tsx` - Base sidebar components
+  - Various other shadcn-ui components
 - **`layout/`** - Layout components
+  - `app-sidebar.tsx` - Main application sidebar
+  - `search-form.tsx` - Sidebar search
+  - `version-switcher.tsx` - Version selection
+  - `nav-main.tsx` - Main navigation items
+  - `nav-projects.tsx` - Projects navigation
+  - `nav-user.tsx` - User navigation
+  - `team-switcher.tsx` - Team selection
   - `Header.tsx` - Navigation header
   - `Footer.tsx` - Status and controls
-  - `Sidebar.tsx` - Tools sidebar
-  - `MainLayout.tsx` - Main layout
 - **`providers/`** - Context providers
   - `theme-provider.tsx` - Theme context
 - **`screenshot/`** - Screenshot components
@@ -128,6 +135,12 @@ Configuration files.
 - Route handlers in `api/`
 - Service layer for business logic
 - Type-safe requests and responses
+
+### Layout System
+- Shadcn-based component architecture
+- Modular sidebar with distinct navigation sections
+- Collapsible and responsive design
+- Theme-aware with CSS variable system
 
 ## File Naming Conventions
 - React components: PascalCase

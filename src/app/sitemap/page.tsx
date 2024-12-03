@@ -1,139 +1,280 @@
+/**
+ * Sitemap Page
+ * 
+ * Purpose: Shows sitemap URLs and allows selection
+ * Functionality: Fetches sitemap, displays URL tree, handles selection
+ * Relationships: Uses sitemap service and URL tree components
+ */
+
 'use client'
 
-import { useState } from "react";
-import { motion } from "framer-motion";
-import { Loader2, ChevronRight, ChevronDown, Check } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
-import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { useEffect, useState } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { AlertCircle, Loader2, Upload, List, Globe, FileWarning } from "lucide-react"
+import { Input } from "@/components/ui/input"
+import { fetchSitemap, organizeUrlTree, type SitemapUrl } from "@/services/sitemap"
+import { UrlTree } from "@/components/sitemap/UrlTree"
+import { useUrlSession } from "@/hooks/useUrlSession"
 
-interface SitemapNode {
-  url: string;
-  title: string;
-  children?: SitemapNode[];
+interface ErrorDisplay {
+  title: string
+  description: string
+  icon: React.ReactNode
+  showAlternatives: boolean
 }
 
-// Example data - replace with real API call
-const sampleSitemap: SitemapNode[] = [
-  {
-    url: "/",
-    title: "Home",
-  },
-  {
-    url: "/products",
-    title: "Products",
-    children: [
-      { url: "/products/category-1", title: "Category 1" },
-      { url: "/products/category-2", title: "Category 2" },
-    ],
-  },
-  {
-    url: "/about",
-    title: "About",
-    children: [
-      { url: "/about/team", title: "Team" },
-      { url: "/about/contact", title: "Contact" },
-    ],
-  },
-];
-
-function SitemapTree({ node, level = 0 }: { node: SitemapNode; level?: number }) {
-  const [isOpen, setIsOpen] = useState(true);
-  const [isChecked, setIsChecked] = useState(true);
-
-  const hasChildren = node.children && node.children.length > 0;
-
-  return (
-    <div className="py-1">
-      <div className="flex items-center gap-2">
-        {hasChildren && (
-          <CollapsibleTrigger
-            onClick={() => setIsOpen(!isOpen)}
-            className="p-1 hover:bg-accent rounded-sm"
-          >
-            {isOpen ? (
-              <ChevronDown className="h-4 w-4" />
-            ) : (
-              <ChevronRight className="h-4 w-4" />
-            )}
-          </CollapsibleTrigger>
-        )}
-        {!hasChildren && <div className="w-6" />}
-        <Checkbox
-          checked={isChecked}
-          onCheckedChange={(checked) => setIsChecked(checked as boolean)}
-        />
-        <span className="text-sm">{node.title}</span>
-        <span className="text-xs text-muted-foreground">{node.url}</span>
-      </div>
-      {hasChildren && (
-        <CollapsibleContent>
-          <div className="ml-6 border-l pl-2">
-            {node.children?.map((child) => (
-              <SitemapTree key={child.url} node={child} level={level + 1} />
-            ))}
-          </div>
-        </CollapsibleContent>
-      )}
-    </div>
-  );
+function getErrorDisplay(error: string, errorType?: string): ErrorDisplay {
+  switch (errorType) {
+    case 'ACCESS_ERROR':
+      return {
+        title: 'Cannot Access Website',
+        description: error,
+        icon: <Globe className="h-4 w-4" />,
+        showAlternatives: false
+      }
+    case 'SITEMAP_NOT_FOUND':
+      return {
+        title: 'No Sitemap Found',
+        description: error,
+        icon: <FileWarning className="h-4 w-4" />,
+        showAlternatives: true
+      }
+    case 'PARSE_ERROR':
+      return {
+        title: 'Sitemap Processing Error',
+        description: error,
+        icon: <AlertCircle className="h-4 w-4" />,
+        showAlternatives: true
+      }
+    default:
+      return {
+        title: 'Error',
+        description: error,
+        icon: <AlertCircle className="h-4 w-4" />,
+        showAlternatives: true
+      }
+  }
 }
 
 export default function SitemapPage() {
-  const [progress, setProgress] = useState(100);
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const initialUrl = searchParams.get('url')
+  const { createSession } = useUrlSession()
+  
+  const [url, setUrl] = useState(initialUrl || '')
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string>()
+  const [errorType, setErrorType] = useState<string>()
+  const [urlGroups, setUrlGroups] = useState<Record<string, SitemapUrl[]>>({})
+  const [selectedUrls, setSelectedUrls] = useState<Set<string>>(new Set())
+  const [availableSitemaps, setAvailableSitemaps] = useState<string[]>([])
+
+  const loadSitemap = async (targetUrl: string) => {
+    setLoading(true)
+    setError(undefined)
+    setErrorType(undefined)
+    setAvailableSitemaps([])
+    
+    try {
+      const data = await fetchSitemap(targetUrl)
+      if (data.error) {
+        setError(data.error)
+        setErrorType(data.errorType)
+        setUrlGroups({})
+        if (data.availableSitemaps) {
+          setAvailableSitemaps(data.availableSitemaps)
+        }
+      } else {
+        const groups = organizeUrlTree(data.urls)
+        setUrlGroups(groups)
+        // Auto-select all URLs initially
+        setSelectedUrls(new Set(data.urls.map(u => u.loc)))
+        if (data.availableSitemaps) {
+          setAvailableSitemaps(data.availableSitemaps)
+        }
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load sitemap')
+      setUrlGroups({})
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    if (!initialUrl) {
+      setLoading(false)
+      return
+    }
+
+    loadSitemap(initialUrl)
+  }, [initialUrl])
+
+  const handleUrlSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!url) return
+    
+    // Update URL in browser history
+    const newUrl = new URL(window.location.href)
+    newUrl.searchParams.set('url', url)
+    router.push(newUrl.pathname + newUrl.search)
+    
+    loadSitemap(url)
+  }
+
+  const handleSitemapSelect = (sitemapUrl: string) => {
+    setUrl(sitemapUrl)
+    loadSitemap(sitemapUrl)
+  }
+
+  const handleUrlToggle = (url: SitemapUrl) => {
+    const newSelected = new Set(selectedUrls)
+    if (newSelected.has(url.loc)) {
+      newSelected.delete(url.loc)
+    } else {
+      newSelected.add(url.loc)
+    }
+    setSelectedUrls(newSelected)
+  }
+
+  const handleSelectAll = () => {
+    const allUrls = new Set<string>()
+    Object.values(urlGroups).flat().forEach(url => {
+      allUrls.add(url.loc)
+    })
+    setSelectedUrls(allUrls)
+  }
+
+  const handleSelectNone = () => {
+    setSelectedUrls(new Set())
+  }
+
+  const handleContinue = () => {
+    if (selectedUrls.size === 0) {
+      setError('Please select at least one URL')
+      return
+    }
+    
+    try {
+      // Create a new session with the selected URLs
+      const sessionId = createSession(url, Array.from(selectedUrls))
+      
+      // Navigate to setup with just the session ID
+      const setupUrl = new URL('/setup', window.location.origin)
+      setupUrl.searchParams.set('session', sessionId)
+      router.push(setupUrl.pathname + setupUrl.search)
+    } catch (err) {
+      setError('Failed to save selected URLs. Please try again.')
+      console.error('Error saving URLs:', err)
+    }
+  }
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-4">
-      <motion.div
-        className="w-full max-w-3xl space-y-8"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-      >
-        <div className="space-y-2">
-          <h1 className="text-2xl font-bold">Site Structure</h1>
-          <p className="text-muted-foreground">
-            Select the pages you want to include in your screenshot collection.
-          </p>
-        </div>
+    <div className="container mx-auto p-6 space-y-6">
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold">Select Pages to Capture</h1>
+        {Object.keys(urlGroups).length > 0 && (
+          <Button onClick={handleContinue}>
+            Continue ({selectedUrls.size} pages selected)
+          </Button>
+        )}
+      </div>
 
-        <Card className="p-6">
-          {progress < 100 ? (
+      <Card>
+        <CardHeader>
+          <CardTitle>Website URL</CardTitle>
+          <CardDescription>
+            Enter your website URL to fetch available pages
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <form onSubmit={handleUrlSubmit} className="flex gap-2">
+            <Input
+              type="text"
+              placeholder="Enter website URL (e.g., example.com)"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              className="flex-1"
+            />
+            <Button type="submit" disabled={loading}>
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Fetch Pages'}
+            </Button>
+          </form>
+
+          {error && (
             <div className="space-y-4">
-              <div className="flex items-center gap-4">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                <span>Analyzing website structure...</span>
-              </div>
-              <Progress value={progress} />
-            </div>
-          ) : (
-            <ScrollArea className="h-[400px] pr-4">
-              <Collapsible defaultOpen>
-                {sampleSitemap.map((node) => (
-                  <SitemapTree key={node.url} node={node} />
-                ))}
-              </Collapsible>
-            </ScrollArea>
-          )}
-        </Card>
+              {(() => {
+                const { title, description, icon, showAlternatives } = getErrorDisplay(error, errorType)
+                return (
+                  <>
+                    <Alert variant="destructive">
+                      {icon}
+                      <AlertTitle>{title}</AlertTitle>
+                      <AlertDescription className="whitespace-pre-line mt-2">
+                        {description}
+                      </AlertDescription>
+                    </Alert>
 
-        <div className="flex justify-between">
-          <Button variant="outline" onClick={() => window.history.back()}>
-            Back
-          </Button>
-          <Button onClick={() => window.location.href = "/setup"}>
-            Continue to Setup
-            <ChevronRight className="ml-2 h-4 w-4" />
-          </Button>
+                    {availableSitemaps.length > 0 && (
+                      <div className="border rounded-lg p-4 space-y-2">
+                        <h3 className="font-medium">Available Sitemaps:</h3>
+                        <div className="space-y-2">
+                          {availableSitemaps.map((sitemap, index) => (
+                            <Button
+                              key={sitemap}
+                              variant="outline"
+                              className="w-full justify-start text-left font-mono text-sm"
+                              onClick={() => handleSitemapSelect(sitemap)}
+                            >
+                              {sitemap}
+                            </Button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {showAlternatives && (
+                      <div className="border rounded-lg p-4 space-y-4">
+                        <h3 className="font-medium">Alternative Options:</h3>
+                        <div className="grid gap-4 md:grid-cols-2">
+                          <Button variant="outline" className="w-full" disabled>
+                            <Upload className="h-4 w-4 mr-2" />
+                            Upload Sitemap XML
+                          </Button>
+                          <Button variant="outline" className="w-full" disabled>
+                            <List className="h-4 w-4 mr-2" />
+                            Enter URLs Manually
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )
+              })()}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {loading && (
+        <div className="flex items-center justify-center min-h-[200px]">
+          <Loader2 className="h-8 w-8 animate-spin" />
         </div>
-      </motion.div>
+      )}
+
+      {!loading && Object.keys(urlGroups).length > 0 && (
+        <UrlTree
+          urlGroups={urlGroups}
+          selectedUrls={selectedUrls}
+          onUrlToggle={handleUrlToggle}
+          onSelectAll={handleSelectAll}
+          onSelectNone={handleSelectNone}
+        />
+      )}
     </div>
-  );
+  )
 } 

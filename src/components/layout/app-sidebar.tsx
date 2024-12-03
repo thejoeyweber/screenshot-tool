@@ -12,6 +12,13 @@ import {
   PieChart,
   Settings2,
   SquareTerminal,
+  CircleDot,
+  Globe,
+  Mail,
+  MousePointerClick,
+  Video,
+  Building,
+  PillBottle,
 } from "lucide-react"
 
 import { NavMain } from "@/components/layout/nav-main"
@@ -52,17 +59,13 @@ const data = {
   ],
   navMain: [
     {
-      title: "Playground",
+      title: "Websites",
       url: "#",
-      icon: SquareTerminal,
+      icon: Globe,
       isActive: true,
       items: [
         {
-          title: "History",
-          url: "#",
-        },
-        {
-          title: "Starred",
+          title: "Capture",
           url: "#",
         },
         {
@@ -72,43 +75,46 @@ const data = {
       ],
     },
     {
-      title: "Models",
+      title: "Emails",
       url: "#",
-      icon: Bot,
+      icon: Mail,
       items: [
         {
-          title: "Genesis",
+          title: "Capture",
           url: "#",
         },
         {
-          title: "Explorer",
-          url: "#",
-        },
-        {
-          title: "Quantum",
+          title: "Settings",
           url: "#",
         },
       ],
     },
     {
-      title: "Documentation",
+      title: "Banner Ads",
       url: "#",
-      icon: BookOpen,
+      icon: MousePointerClick,
       items: [
         {
-          title: "Introduction",
+          title: "Capture",
           url: "#",
         },
         {
-          title: "Get Started",
+          title: "Settings",
+          url: "#",
+        },
+      ],
+    },
+    {
+      title: "Videos",
+      url: "#",
+      icon: Video,
+      items: [
+        {
+          title: "Capture",
           url: "#",
         },
         {
-          title: "Tutorials",
-          url: "#",
-        },
-        {
-          title: "Changelog",
+          title: "Settings",
           url: "#",
         },
       ],
@@ -139,19 +145,24 @@ const data = {
   ],
   projects: [
     {
-      name: "Design Engineering",
+      name: "Pharma Co.",
       url: "#",
-      icon: Frame,
+      icon: Building,
     },
     {
-      name: "Sales & Marketing",
+      name: "NeuroZentis",
       url: "#",
-      icon: PieChart,
+      icon: PillBottle,
     },
     {
-      name: "Travel",
+      name: "CardioLuxa",
       url: "#",
-      icon: Map,
+      icon: PillBottle,
+    },
+    {
+      name: "Painovan",
+      url: "#",
+      icon: PillBottle,
     },
   ],
 }

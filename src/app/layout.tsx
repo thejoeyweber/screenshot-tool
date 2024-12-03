@@ -7,7 +7,6 @@ import { Inter } from 'next/font/google'
 import './globals.css'
 import { ThemeProvider } from '@/components/providers/theme-provider'
 import { TooltipProvider } from '@/components/ui/tooltip'
-import { SidebarProvider } from '@/components/ui/sidebar'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -26,16 +25,14 @@ export default function RootLayout({
       <body className={inter.className}>
         <ThemeProvider
           attribute="class"
-          defaultTheme="system"
+          defaultTheme="base"
           enableSystem
           disableTransitionOnChange
         >
           <TooltipProvider>
-            <SidebarProvider>
-              {children}
-            </SidebarProvider>
-          </TooltipProvider>
-        </ThemeProvider>
+            {children}
+        </TooltipProvider>
+      </ThemeProvider>
       </body>
     </html>
   )

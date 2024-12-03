@@ -28,11 +28,11 @@ export default function HomePage() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
       >
-        <h1 className="text-4xl font-bold tracking-tight">
-          Capture Your Website, Page by Page
+        <h1 className="text-4xl font-bold tracking-tight max-w-2xl">
+          The Easiest Way to Create Your MLR Submission Files
         </h1>
         <p className="text-xl text-muted-foreground max-w-2xl">
-          Generate beautiful, organized screenshots of your entire website with just one URL.
+          The easiest way to generate PDFs of marketing materials to submit to medical, legal, and regulatory review.
         </p>
       </motion.div>
 

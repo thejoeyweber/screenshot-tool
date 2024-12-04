@@ -24,15 +24,49 @@
 
 ### Core Functionality
 - [ ] Headless browser integration
+  - Chrome/Playwright setup
+  - Device emulation profiles
+  - Custom viewport handling
+  - Authentication support
 - [ ] Screenshot capture service
+  - Full-page captures
+  - Viewport captures
+  - Custom dimension support
+  - Dynamic content delays (100ms-5s)
+  - Element hiding via selectors
 - [ ] Image processing and optimization
+  - JPEG/PNG output formats
+  - Quality settings (70-100%)
+  - Max dimensions (10000px)
+  - File size limits (10MB)
+  - Metadata preservation
 - [ ] Progress tracking and status updates
+  - Status states (queued/processing/complete/failed)
+  - Progress percentage calculation
+  - Batch size control (10-50 URLs)
+  - Retry mechanism (3 attempts)
+  - Rate limiting (5 concurrent)
 
 ### Frontend Features
 - [ ] Screenshot preview
+  - Zoom/pan controls
+  - Thumbnail generation
+  - Quick view modal
 - [ ] Capture settings configuration
+  - Device profiles
+  - Delay controls
+  - Element hiding UI
+  - Batch size adjustment
 - [ ] Batch processing controls
+  - Start/pause/resume
+  - Cancel operation
+  - Priority adjustment
+  - Progress visualization
 - [ ] Error recovery and retry options
+  - Error details display
+  - Manual retry triggers
+  - Skip problem URLs
+  - Batch retry support
 
 ## Phase 3: Image Management
 

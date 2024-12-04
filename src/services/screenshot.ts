@@ -5,7 +5,7 @@
 import puppeteer from 'puppeteer'
 import type { Screenshot, DeviceConfig } from '@/types/screenshot'
 import type { SiteProfile } from '@/types/site-profile'
-import { StorageService } from '@/services/storage'
+import { storageService } from './storage'
 import sharp from 'sharp'
 import { deviceConfigs } from '@/config/devices'
 
@@ -26,10 +26,6 @@ const DEFAULT_OPTIONS = {
   quality: 90,          // 90% JPEG quality
   maxFileSize: 10 * 1024 * 1024  // 10MB
 } as const
-
-// Create singleton storage instance
-const storage = new StorageService()
-let storageInitialized = false
 
 /**
  * Process image buffer with optimizations
@@ -91,18 +87,12 @@ export async function captureScreen({
   console.log('Starting screenshot capture:', { url, deviceConfig, delay })
   
   // Initialize storage if needed
-  if (!storageInitialized) {
-    await storage.init()
-    storageInitialized = true
-  }
-
-  // Create or use existing session
-  const session = sessionId 
-    ? await storage.getSession(sessionId) 
-    : await storage.createSession()
-
-  if (!session) {
-    throw new Error('Failed to create or get storage session')
+  await storageService.init()
+  
+  // Create session if needed
+  if (!sessionId) {
+    const session = await storageService.createSession()
+    sessionId = session.id
   }
 
   let browser
@@ -214,7 +204,7 @@ export async function captureScreen({
 
     // Save to storage
     console.log('Saving to storage...')
-    const file = await storage.saveFile(session.id, processedBuffer, {
+    const file = await storageService.saveFile(sessionId, processedBuffer, {
       url,
       title: await page.title(),
       deviceConfig,
@@ -237,7 +227,7 @@ export async function captureScreen({
           height: deviceConfig.height
         },
         storagePath: file.path,
-        sessionId: session.id,
+        sessionId: sessionId,
         ...(profile && { profileData: profile })
       }
     }
@@ -255,4 +245,4 @@ export async function captureScreen({
 }
 
 // Export storage service for direct access if needed
-export const screenshotStorage = storage 
+export const screenshotStorage = storageService 

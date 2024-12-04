@@ -16,7 +16,7 @@ export interface BatchJob {
   config: BatchConfig
   profile?: SiteProfile
   sessionId?: string
-  status: 'queued' | 'processing' | 'completed' | 'failed'
+  status: 'queued' | 'processing' | 'completed' | 'failed' | 'completed_with_errors'
   progress: number
   results: Screenshot[]
   error?: string

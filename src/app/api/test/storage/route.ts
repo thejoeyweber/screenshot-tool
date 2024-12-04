@@ -5,11 +5,8 @@
  * Note: This endpoint is for development/testing only
  */
 import { NextResponse } from 'next/server'
-import { StorageService } from '@/services/storage'
+import { storageService } from '@/services/storage'
 import path from 'path'
-
-// Create a singleton instance
-const storage = new StorageService()
 
 export async function GET() {
   const results = {
@@ -23,17 +20,17 @@ export async function GET() {
     results.steps.push('Initializing storage...')
     const basePath = path.join(process.cwd(), 'tmp', 'screenshots')
     results.steps.push(`Base path: ${basePath}`)
-    await storage.init()
+    await storageService.init()
     
     // Create a test session
     results.steps.push('Creating session...')
-    const session = await storage.createSession()
+    const session = await storageService.createSession()
     results.steps.push(`Session created: ${session.id}`)
     results.steps.push(`Session path: ${session.path}`)
     
     // Get storage stats
     results.steps.push('Getting storage stats...')
-    const stats = await storage.getStats()
+    const stats = await storageService.getStats()
     results.steps.push(`Storage stats: ${JSON.stringify(stats, null, 2)}`)
 
     results.success = true

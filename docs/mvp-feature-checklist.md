@@ -98,6 +98,28 @@
   - [x] Skip problem URLs
   - [x] Batch retry support
 
+### Batch Processing System (Started)
+- [x] Basic types and interfaces defined
+- [x] Initial batch service structure
+- [ ] Complete queue management system
+- [ ] Job status tracking implementation
+- [ ] Progress visualization
+- [ ] Parallel processing
+- [ ] Resource management
+- [ ] Error recovery system
+
+### User Flow Integration (Priority)
+- [x] Homepage (/) with URL input
+- [x] Sitemap page (/sitemap) with URL processing
+- [ ] Setup page (/setup) with session management
+- [ ] Configuration page (/config) with capture settings
+- [ ] Generation page (/generate) with batch processing
+- [ ] Customization page (/customize) for results
+- [ ] Download page (/download) for final output
+- [ ] State management between pages
+- [ ] Session persistence
+- [ ] Error handling across flow
+
 ## Phase 3: Image Management
 
 ### Storage and Organization
@@ -146,4 +168,5 @@
 - Phase 2 core screenshot functionality working ✓
 - Storage strategy implemented with local filesystem ✓
 - Frontend components for configuration complete ✓
-- Ready for batch processing implementation 
+- Batch processing system started but needs completion
+- User flow integration needed for end-to-end functionality 

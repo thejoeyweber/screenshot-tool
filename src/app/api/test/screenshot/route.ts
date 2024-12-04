@@ -1,14 +1,20 @@
-import { captureScreen, deviceConfigs } from '@/services/screenshot'
+/**
+ * Test Screenshot API Route
+ * 
+ * Purpose: Testing endpoint for screenshot functionality
+ * Note: This endpoint is for development/testing only
+ */
+import { captureScreen, screenshotStorage } from '@/services/screenshot'
+import { deviceConfigs } from '@/config/devices'
 import { NextResponse } from 'next/server'
 import { headers } from 'next/headers'
+import { validateUrl } from '@/services/url-validation'
 
 async function getProfile(url: string) {
-  // Get the host from the request headers
   const headersList = await headers()
   const host = headersList.get('host') || 'localhost:3000'
   const protocol = process.env.NODE_ENV === 'development' ? 'http' : 'https'
   
-  // Construct absolute URL for internal API
   const profileUrl = `${protocol}://${host}/api/profile-url?url=${encodeURIComponent(url)}`
   console.log('Fetching profile from:', profileUrl)
   
@@ -40,28 +46,49 @@ export async function GET(request: Request) {
   }
 
   try {
-    // Get site profile first
-    const profile = await getProfile(url)
-    console.log('Site profile:', profile)
-
-    if (!profile) {
-      console.error('Failed to get site profile')
-      return NextResponse.json({ error: 'Failed to get site profile' }, { status: 500 })
+    // Validate URL
+    const validation = validateUrl(url)
+    if (!validation.isValid) {
+      return NextResponse.json({ 
+        error: 'Invalid URL',
+        details: validation.error
+      }, { status: 400 })
     }
 
-    // Take screenshot with profile-informed settings
+    // Initialize storage
+    await screenshotStorage.init()
+    
+    // Create a new session
+    const session = await screenshotStorage.createSession()
+    console.log('Created storage session:', session.id)
+
+    // Get site profile
+    const profile = await getProfile(validation.normalizedUrl || url)
+    console.log('Site profile:', profile)
+
+    // Take screenshot with storage session
     const screenshot = await captureScreen({
-      url,
+      url: validation.normalizedUrl || url,
       deviceConfig: deviceConfigs.desktop,
-      profile
+      profile,
+      sessionId: session.id
     })
 
-    // Serve the image directly with proper headers
+    // Get storage stats
+    const stats = await screenshotStorage.getStats()
+    console.log('Storage stats:', stats)
+
+    // Return image with metadata headers
     return new NextResponse(screenshot.imageData, {
-      headers: {
+      headers: new Headers({
         'Content-Type': 'image/jpeg',
         'Content-Length': screenshot.imageData.length.toString(),
-      },
+        'X-Screenshot-ID': screenshot.id,
+        'X-Session-ID': session.id,
+        ...(screenshot.metadata.storagePath && {
+          'X-Storage-Path': screenshot.metadata.storagePath
+        })
+      })
     })
   } catch (error) {
     console.error('Screenshot error:', error instanceof Error ? error.stack : error)

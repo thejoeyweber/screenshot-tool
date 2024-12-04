@@ -1,5 +1,13 @@
+/**
+ * Screenshot API Route
+ * 
+ * Purpose: Main screenshot API endpoint for JSON responses
+ * Functionality: Takes screenshots and returns JSON data with base64 image
+ */
 import { NextResponse } from 'next/server'
-import { captureScreen, deviceConfigs } from '@/services/screenshot'
+import { captureScreen } from '@/services/screenshot'
+import { deviceConfigs } from '@/config/devices'
+import { validateUrl } from '@/services/url-validation'
 import type { DeviceConfig } from '@/types/screenshot'
 
 export async function POST(request: Request) {
@@ -11,6 +19,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'URL is required' }, { status: 400 })
     }
 
+    // Validate URL
+    const validation = validateUrl(url)
+    if (!validation.isValid) {
+      return NextResponse.json({ 
+        error: 'Invalid URL',
+        details: validation.error
+      }, { status: 400 })
+    }
+
     // Get device config
     const deviceConfig = deviceConfigs[device as keyof typeof deviceConfigs]
     if (!deviceConfig) {
@@ -18,7 +35,7 @@ export async function POST(request: Request) {
     }
 
     const screenshot = await captureScreen({
-      url,
+      url: validation.normalizedUrl || url,
       deviceConfig,
       delay,
       hideSelectors

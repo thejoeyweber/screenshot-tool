@@ -1,46 +1,112 @@
-# MVP Web Screenshot Capture Implementation Plan
+# MVP Web Screenshot Tool - Implementation Guide
 
-## Global Implementation Guidelines
+> This document provides detailed technical guidance for implementing MVP features. For a quick overview of feature completion status, see `/docs/mvp-feature-checklist.md`.
+
+## Completed Features
+
+### Screenshot Service
+- Basic screenshot capture with Puppeteer ✓
+- Device emulation profiles ✓
+- Element hiding via CSS selectors ✓
+- Dynamic content delays ✓
+- Image optimization and processing ✓
+
+### Storage Service
+- Local filesystem storage ✓
+- Session-based organization ✓
+- Automatic cleanup ✓
+- File metadata tracking ✓
+
+### Frontend Components
+- Device configuration UI ✓
+- Delay settings UI ✓
+- Element hiding UI ✓
+- Basic image preview ✓
+
+### API Routes
+- Screenshot capture endpoint ✓
+- URL profiling endpoint ✓
+- Storage management endpoints ✓
+- Test endpoints ✓
+
+## Next Implementation Steps
+
+### 1. Batch Processing
+```typescript
+// Types to Add (src/types/batch.ts):
+interface BatchJob {
+  urls: string[]
+  config: {
+    device: DeviceConfig
+    delay: number
+    hideSelectors: string[]
+  }
+  status: 'pending' | 'processing' | 'completed' | 'failed'
+  progress: number
+  results: Screenshot[]
+}
+
+// Service to Create (src/services/batch.ts):
+class BatchService {
+  queue: BatchJob[]
+  processing: boolean
+  
+  async addJob(job: BatchJob): Promise<string>
+  async processQueue(): Promise<void>
+  async pauseProcessing(): Promise<void>
+  async resumeProcessing(): Promise<void>
+  async cancelJob(jobId: string): Promise<void>
+}
+```
+
+### 2. Image Preview Enhancements
+```typescript
+// Components to Update:
+// src/components/screenshot/ImagePreview.tsx
+interface ImagePreviewProps {
+  screenshot: Screenshot
+  onClose?: () => void
+  controls?: {
+    zoom?: boolean
+    pan?: boolean
+    fullscreen?: boolean
+  }
+}
+```
+
+### 3. Error Recovery System
+```typescript
+// Types to Add (src/types/error.ts):
+interface ErrorLog {
+  id: string
+  timestamp: Date
+  type: 'capture' | 'storage' | 'processing'
+  details: any
+  retryCount: number
+  resolved: boolean
+}
+
+// Service to Create (src/services/error-handling.ts):
+class ErrorHandlingService {
+  async logError(error: Error): Promise<ErrorLog>
+  async retryOperation(errorId: string): Promise<void>
+  async getErrorLogs(): Promise<ErrorLog[]>
+}
+```
+
+## Development Guidelines
 
 ### Code Organization & Style
-- Preserve existing page layouts and UI structure
-- Utilize shadcn components from `/components/ui/` whenever possible
-- Never modify files in `/components/ui/` directory
-- Include clear file headers with:
-  ```typescript
-  /**
-   * Component/Service Name
-   * 
-   * Purpose: Brief description of the component's purpose
-   * Functionality: Key functions/features
-   * Relationships: How it interacts with other components
-   * 
-   * @example Basic usage example if applicable
-   */
-  ```
-- Follow established naming conventions and file structure
-
-### Development Principles
-- Avoid duplicating functionality
-- Build with scalability in mind
-- Keep components modular and reusable
-- Use TypeScript types/interfaces for data consistency
-- Implement proper error handling
-- Add appropriate loading states
-- Include accessibility features
-
-### Documentation
-- Update `/documentation` files as features are implemented
-- Keep schema documentation in sync with database changes
-- Document any deviations from original plans
-- Add inline documentation for complex logic
-- Update README.md with new setup requirements
+- Preserve existing page layouts and UI structure ✓
+- Utilize shadcn components from `/components/ui/` ✓
+- Never modify files in `/components/ui/` directory ✓
+- Include clear file headers ✓
 
 ### Testing & Quality
 - Write tests for new functionality
-- Include error case handling
-- Add loading states
-- Ensure responsive design
+- Include error case handling ✓
+- Add loading states ✓
+- Ensure responsive design ✓
 - Follow accessibility guidelines
 - Test across different devices/browsers
 

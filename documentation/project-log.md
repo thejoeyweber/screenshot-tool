@@ -1,6 +1,38 @@
-# Project Activity Log
+# Project Development Log
 
-## December 2, 2023
+## December 4, 2023
+
+### API Route Reorganization
+- Cleaned up API route structure
+- Moved test endpoints to `/api/test/` directory
+- Removed duplicate routes (`/screenshots`, `/test-screenshot`, `/test-storage`)
+- Fixed imports and type issues across routes
+
+### Screenshot Service Improvements
+- Fixed deviceConfigs import from correct location
+- Added proper error handling and validation
+- Improved URL profiling integration
+- Confirmed element hiding functionality working
+
+### Storage Service Integration
+- Fixed storage service initialization
+- Improved session handling
+- Added proper error handling
+- Implemented file cleanup
+
+### Frontend Components
+- Tested and verified ImagePreview component
+- Confirmed CaptureSettings functionality
+- Validated ElementHider feature
+- Improved error states and loading indicators
+
+### Documentation
+- Updated structure.md with current project organization
+- Reorganized API routes documentation
+- Added new components and services documentation
+- Updated feature checklist with completed items
+
+## December 3, 2023
 
 ### Initial Setup
 - Created Next.js 14 project with TypeScript and App Router
@@ -202,9 +234,46 @@
 - Consider caching for repeat captures
 - Add proper progress tracking for batch operations
 
+## January 13-14, 2024
+
+### Storage Strategy Planning
+- Analyzed storage requirements for screenshot pipeline
+- Designed three-phase storage approach:
+  1. Temporary (MVP): Local filesystem with 24h retention
+  2. Intermediate: Hybrid local-cloud with 7-day retention
+  3. Archive: Long-term cloud storage with 30-day retention
+
+### Performance Analysis
+- Evaluated storage options:
+  - Local filesystem: Best write performance (~500MB/s)
+  - Object storage: Better scalability but higher latency
+  - Hybrid approach: Balance of performance and reliability
+
+### Implementation Strategy
+- Defined MVP storage structure:
+  - `/tmp/screenshots/{session_id}/{timestamp}-{url-hash}.jpg`
+  - Session-based organization
+  - Automatic cleanup system
+  - Error handling and recovery
+
+### Technical Decisions
+- Chose local filesystem for MVP phase
+  - Fastest implementation path
+  - Best initial performance
+  - Simple cleanup process
+  - Easy migration path to cloud
+
+### Future Considerations
+- Prepared for cloud integration
+  - S3/R2 storage integration
+  - CDN implementation
+  - Compression strategies
+  - Long-term archival
+
 ## Next Steps:
-- [ ] Implement proper authentication handling
-- [ ] Add rate limiting and queuing
-- [ ] Create frontend for URL profiling data
-- [ ] Enhance error recovery mechanisms
-- [ ] Add batch processing capabilities
+- [ ] Implement local storage system
+- [ ] Add session management
+- [ ] Create cleanup routines
+- [ ] Add disk space monitoring
+- [ ] Implement error recovery
+- [ ] Prepare cloud storage integration plan

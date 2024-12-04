@@ -23,6 +23,9 @@ export interface Screenshot {
       width: number
       height: number
     }
+    storagePath?: string
+    sessionId?: string
+    profileData?: any
   }
   annotations?: Annotation[]
 }

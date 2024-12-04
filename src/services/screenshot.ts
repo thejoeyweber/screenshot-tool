@@ -5,6 +5,9 @@
 import puppeteer from 'puppeteer'
 import type { Screenshot, DeviceConfig } from '@/types/screenshot'
 import type { SiteProfile } from '@/types/site-profile'
+import { StorageService } from '@/services/storage'
+import sharp from 'sharp'
+import { deviceConfigs } from '@/config/devices'
 
 interface CaptureOptions {
   url: string
@@ -12,6 +15,66 @@ interface CaptureOptions {
   delay?: number
   hideSelectors?: string[]
   profile?: SiteProfile
+  sessionId?: string
+  maxDimension?: number
+  quality?: number
+  maxFileSize?: number
+}
+
+const DEFAULT_OPTIONS = {
+  maxDimension: 10000,  // 10000px max dimension
+  quality: 90,          // 90% JPEG quality
+  maxFileSize: 10 * 1024 * 1024  // 10MB
+} as const
+
+// Create singleton storage instance
+const storage = new StorageService()
+let storageInitialized = false
+
+/**
+ * Process image buffer with optimizations
+ */
+async function processImage(
+  buffer: Buffer,
+  options: { maxDimension: number; quality: number; maxFileSize: number }
+): Promise<Buffer> {
+  let image = sharp(buffer)
+  const metadata = await image.metadata()
+  
+  if (!metadata.width || !metadata.height) {
+    throw new Error('Invalid image dimensions')
+  }
+
+  // Check if dimensions exceed max
+  if (metadata.width > options.maxDimension || metadata.height > options.maxDimension) {
+    const aspectRatio = metadata.width / metadata.height
+    
+    if (metadata.width > metadata.height) {
+      image = image.resize(options.maxDimension, Math.round(options.maxDimension / aspectRatio))
+    } else {
+      image = image.resize(Math.round(options.maxDimension * aspectRatio), options.maxDimension)
+    }
+  }
+
+  // Convert to JPEG with quality setting
+  let processedBuffer = await image
+    .jpeg({ quality: options.quality })
+    .toBuffer()
+
+  // If still too large, reduce quality incrementally
+  let currentQuality = options.quality
+  while (processedBuffer.length > options.maxFileSize && currentQuality > 50) {
+    currentQuality -= 10
+    processedBuffer = await image
+      .jpeg({ quality: currentQuality })
+      .toBuffer()
+  }
+
+  if (processedBuffer.length > options.maxFileSize) {
+    throw new Error(`Image file size (${processedBuffer.length}) exceeds maximum allowed (${options.maxFileSize})`)
+  }
+
+  return processedBuffer
 }
 
 export async function captureScreen({ 
@@ -19,50 +82,46 @@ export async function captureScreen({
   deviceConfig,
   delay = 1000,
   hideSelectors = [],
-  profile
+  profile,
+  sessionId,
+  maxDimension = DEFAULT_OPTIONS.maxDimension,
+  quality = DEFAULT_OPTIONS.quality,
+  maxFileSize = DEFAULT_OPTIONS.maxFileSize
 }: CaptureOptions): Promise<Screenshot> {
   console.log('Starting screenshot capture:', { url, deviceConfig, delay })
   
-  if (profile) {
-    delay = profile.recommendations.suggestedDelay
-    console.log('Using profile recommendations:', profile.recommendations)
-    
-    if (profile.features.hasCookieConsent) {
-      hideSelectors = [
-        ...hideSelectors,
-        '.cookie-banner',
-        '#cookie-notice',
-        '[class*="cookie"]',
-        '[class*="consent"]',
-        '[id*="cookie"]',
-        '[id*="consent"]'
-      ]
-    }
-
-    if (profile.recommendations.needsAuthentication) {
-      console.warn('Page requires authentication, capture may be incomplete')
-    }
+  // Initialize storage if needed
+  if (!storageInitialized) {
+    await storage.init()
+    storageInitialized = true
   }
 
-  const browser = await puppeteer.launch({
-    headless: true,
-    args: [
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--disable-web-security',
-      '--disable-features=IsolateOrigins,site-per-process'
-    ]
-  }).catch(error => {
-    console.error('Browser launch failed:', error)
-    throw error
-  })
-  
-  console.log('Browser launched')
-  
-  const page = await browser.newPage()
-  console.log('New page created')
+  // Create or use existing session
+  const session = sessionId 
+    ? await storage.getSession(sessionId) 
+    : await storage.createSession()
 
+  if (!session) {
+    throw new Error('Failed to create or get storage session')
+  }
+
+  let browser
   try {
+    browser = await puppeteer.launch({
+      headless: true,
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-web-security',
+        '--disable-features=IsolateOrigins,site-per-process'
+      ]
+    })
+    
+    console.log('Browser launched')
+    
+    const page = await browser.newPage()
+    console.log('New page created')
+
     const viewportHeight = profile?.metrics?.initialHeight || deviceConfig.height
     console.log('Setting viewport:', { ...deviceConfig, height: viewportHeight })
     await page.setViewport({
@@ -91,12 +150,17 @@ export async function captureScreen({
     const response = await page.goto(url, { 
       waitUntil: ['networkidle0', 'domcontentloaded'],
       timeout: profile?.metrics?.scripts ? Math.max(30000, profile.metrics.scripts * 500) : 30000
-    }).catch(error => {
-      console.error('Navigation failed:', error)
-      throw error
     })
     
-    console.log('Navigation complete. Status:', response?.status())
+    if (!response) {
+      throw new Error('Failed to get page response')
+    }
+    
+    if (!response.ok()) {
+      throw new Error(`Page responded with status ${response.status()}: ${response.statusText()}`)
+    }
+    
+    console.log('Navigation complete. Status:', response.status())
     
     console.log('Waiting for content to load')
     await Promise.all([
@@ -130,76 +194,65 @@ export async function captureScreen({
       ))
     }
 
+    // Take screenshot
     console.log('Taking screenshot')
-    const buffer = await page.screenshot({
+    const rawBuffer = await page.screenshot({
       fullPage: true,
       type: 'jpeg',
-      quality: 90
+      quality: 100 // Capture at max quality, then optimize
     }) as Buffer
-    console.log('Screenshot taken, buffer size:', buffer.length)
+    console.log('Screenshot taken, raw buffer size:', rawBuffer.length)
 
-    const title = await page.title()
-    console.log('Page title:', title)
-    const timestamp = new Date()
+    // Process and optimize image
+    console.log('Processing image...')
+    const processedBuffer = await processImage(rawBuffer, {
+      maxDimension,
+      quality,
+      maxFileSize
+    })
+    console.log('Image processed, final size:', processedBuffer.length)
 
-    const screenshot = {
-      id: `${timestamp.getTime()}-${url.replace(/[^a-z0-9]/gi, '-')}`,
+    // Save to storage
+    console.log('Saving to storage...')
+    const file = await storage.saveFile(session.id, processedBuffer, {
       url,
-      title,
-      createdAt: timestamp,
-      imageData: buffer,
+      title: await page.title(),
+      deviceConfig,
+      timestamp: new Date().toISOString(),
+      dimensions: await sharp(processedBuffer).metadata(),
+      ...(profile && { profileData: profile })
+    })
+    console.log('Saved to storage:', file.path)
+
+    const screenshot: Screenshot = {
+      id: file.filename.replace('.jpg', ''),
+      url,
+      title: await page.title(),
+      createdAt: file.createdAt,
+      imageData: processedBuffer,
       metadata: {
         device: deviceConfig.name,
         viewport: {
           width: deviceConfig.width,
           height: deviceConfig.height
         },
+        storagePath: file.path,
+        sessionId: session.id,
         ...(profile && { profileData: profile })
       }
     }
-    console.log('Screenshot object created:', { 
-      id: screenshot.id, 
-      url: screenshot.url,
-      bufferSize: screenshot.imageData.length,
-      metadata: screenshot.metadata
-    })
 
     return screenshot
   } catch (error) {
     console.error('Screenshot capture error:', error)
     throw error
   } finally {
-    console.log('Closing browser')
-    await browser.close()
+    if (browser) {
+      console.log('Closing browser')
+      await browser.close()
+    }
   }
 }
 
-export async function saveScreenshot(screenshot: Screenshot): Promise<void> {
-  // Implementation will be added when we set up storage
-  throw new Error('Not implemented')
-}
-
-// Predefined device configurations
-export const deviceConfigs = {
-  desktop: {
-    name: 'Desktop',
-    width: 1920,
-    height: 1080,
-    deviceScaleFactor: 1,
-    isMobile: false
-  },
-  tablet: {
-    name: 'Tablet',
-    width: 1024,
-    height: 768,
-    deviceScaleFactor: 2,
-    isMobile: true
-  },
-  mobile: {
-    name: 'Mobile',
-    width: 375,
-    height: 667,
-    deviceScaleFactor: 2,
-    isMobile: true
-  }
-} as const 
+// Export storage service for direct access if needed
+export const screenshotStorage = storage 

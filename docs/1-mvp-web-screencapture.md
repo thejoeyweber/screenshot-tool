@@ -20,32 +20,42 @@
 - [x] Error handling with proper status codes
 - [x] No-cache headers implementation
 
-## Phase 2: Screenshot Capture (Next)
+## Phase 2: Screenshot Capture (In Progress)
 
 ### Core Functionality
-- [ ] Headless browser integration
-  - Chrome/Playwright setup
-  - Device emulation profiles
-  - Custom viewport handling
-  - Authentication support
-- [ ] Screenshot capture service
-  - Full-page captures
-  - Viewport captures
-  - Custom dimension support
-  - Dynamic content delays (100ms-5s)
-  - Element hiding via selectors
+- [x] URL Profiling
+  - [x] Response time analysis
+  - [x] Security header detection
+  - [x] Cookie consent detection
+  - [x] Authentication requirements
+  - [x] Resource metrics
+  - [x] Delay recommendations
+  - [x] Warning generation
+- [x] Headless browser integration
+  - [x] Chrome/Playwright setup
+  - [x] Device emulation profiles
+  - [x] Custom viewport handling
+  - [ ] Authentication support (Future)
+- [x] Screenshot capture service
+  - [x] Full-page captures
+  - [x] Viewport captures
+  - [x] Custom dimension support
+  - [x] Dynamic content delays (100ms-5s)
+  - [x] Element hiding via selectors
+  - [x] Cookie consent handling
+  - [x] CSP bypass options
 - [ ] Image processing and optimization
-  - JPEG/PNG output formats
-  - Quality settings (70-100%)
-  - Max dimensions (10000px)
-  - File size limits (10MB)
-  - Metadata preservation
+  - [x] JPEG/PNG output formats
+  - [x] Quality settings (70-100%)
+  - [ ] Max dimensions (10000px)
+  - [ ] File size limits (10MB)
+  - [x] Metadata preservation
 - [ ] Progress tracking and status updates
-  - Status states (queued/processing/complete/failed)
-  - Progress percentage calculation
-  - Batch size control (10-50 URLs)
-  - Retry mechanism (3 attempts)
-  - Rate limiting (5 concurrent)
+  - [ ] Status states (queued/processing/complete/failed)
+  - [ ] Progress percentage calculation
+  - [ ] Batch size control (10-50 URLs)
+  - [ ] Retry mechanism (3 attempts)
+  - [ ] Rate limiting (5 concurrent)
 
 ### Frontend Features
 - [ ] Screenshot preview

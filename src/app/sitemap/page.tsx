@@ -271,8 +271,8 @@ export default function SitemapPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {availableSitemaps.map((sitemap) => (
-              <div key={sitemap} className="flex items-center justify-between py-2">
+            {availableSitemaps.map((sitemap, index) => (
+              <div key={`${sitemap}-${index}`} className="flex items-center justify-between py-2">
                 <div className="flex items-center space-x-2">
                   <FileCheck className="h-4 w-4 text-muted-foreground" />
                   <span className="font-mono text-sm">{sitemap}</span>

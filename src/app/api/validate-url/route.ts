@@ -45,6 +45,11 @@ export async function GET(request: Request) {
           isValid: false,
           error: "Missing URL parameter"
         }
+      }, {
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache'
+        }
       })
     }
 
@@ -56,6 +61,11 @@ export async function GET(request: Request) {
           isValid: true,
           normalizedUrl: canonicalDomain
         }
+      }, {
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache'
+        }
       })
     }
 
@@ -66,6 +76,11 @@ export async function GET(request: Request) {
         isValid: false,
         error: "Could not access website"
       }
+    }, {
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache'
+      }
     })
   } catch (error) {
     return NextResponse.json<ApiResponse<UrlValidationResponse>>({
@@ -74,6 +89,11 @@ export async function GET(request: Request) {
       data: {
         isValid: false,
         error: error instanceof Error ? error.message : "Unknown error"
+      }
+    }, {
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache'
       }
     })
   }
@@ -91,6 +111,11 @@ export async function POST(request: Request) {
           isValid: true,
           normalizedUrl: canonicalDomain
         }
+      }, {
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache'
+        }
       })
     }
 
@@ -101,6 +126,11 @@ export async function POST(request: Request) {
         isValid: false,
         error: "Could not access website"
       }
+    }, {
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache'
+      }
     })
   } catch (error) {
     return NextResponse.json<ApiResponse<UrlValidationResponse>>({
@@ -109,6 +139,11 @@ export async function POST(request: Request) {
       data: {
         isValid: false,
         error: error instanceof Error ? error.message : "Unknown error"
+      }
+    }, {
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache'
       }
     })
   }

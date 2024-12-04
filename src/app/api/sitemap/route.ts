@@ -14,13 +14,21 @@ export async function GET(request: Request) {
     const response = await fetch(url, {
       headers: {
         'Accept': 'text/xml, application/xml',
-        'User-Agent': 'Mozilla/5.0 (compatible; SitemapFetcher/1.0)'
+        'User-Agent': 'Mozilla/5.0 (compatible; SitemapFetcher/1.0)',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache'
       }
     })
 
     // Handle 404s separately from other errors
     if (response.status === 404) {
-      return NextResponse.json({ error: 'Sitemap not found' }, { status: 404 })
+      return NextResponse.json({ error: 'Sitemap not found' }, { 
+        status: 404,
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache'
+        }
+      })
     }
 
     if (!response.ok) {
@@ -31,10 +39,21 @@ export async function GET(request: Request) {
     
     // Basic validation that it's a sitemap
     if (!text.includes('<urlset') && !text.includes('<sitemapindex')) {
-      return NextResponse.json({ error: 'Not a valid sitemap' }, { status: 422 })
+      return NextResponse.json({ error: 'Not a valid sitemap' }, { 
+        status: 422,
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache'
+        }
+      })
     }
 
-    return NextResponse.json({ data: text })
+    return NextResponse.json({ data: text }, {
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache'
+      }
+    })
   } catch (error) {
     console.error('Sitemap fetch error:', error)
     return NextResponse.json(

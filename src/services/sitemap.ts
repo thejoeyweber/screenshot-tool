@@ -30,20 +30,46 @@ interface SitemapEntry {
 }
 
 /**
+ * Normalizes a URL's hostname by removing www if present
+ */
+function normalizeHostname(hostname: string): string {
+  return hostname.replace(/^www\./, '');
+}
+
+/**
+ * Normalizes a URL by standardizing protocol and www handling
+ */
+function normalizeUrl(url: string): string {
+  const urlObj = new URL(url);
+  const normalizedHostname = normalizeHostname(urlObj.hostname);
+  urlObj.hostname = normalizedHostname;
+  urlObj.protocol = 'https:';
+  return urlObj.toString();
+}
+
+/**
  * Attempts to resolve the correct domain with various prefixes
  */
 async function resolveDomain(url: string): Promise<string> {
   // Normalize the URL
   let domain = url.toLowerCase().trim()
   
+  // Add protocol if missing
+  if (!domain.startsWith('http://') && !domain.startsWith('https://')) {
+    domain = 'https://' + domain;
+  }
+  
   try {
-    // Validate and get canonical domain
+    // First normalize locally
+    domain = normalizeUrl(domain);
+    
+    // Then validate with server
     const response = await fetch(`/api/validate-url?url=${encodeURIComponent(domain)}`)
     if (response.ok) {
       const data = await response.json()
       if (data.success && data.data.normalizedUrl) {
-        console.debug('Successfully resolved canonical domain:', data.data.normalizedUrl)
-        return data.data.normalizedUrl
+        // Ensure consistent normalization of server response
+        return normalizeUrl(data.data.normalizedUrl);
       }
     }
     
@@ -184,6 +210,44 @@ function parseSitemapResponse(xmlText: string, domain: string) {
 }
 
 /**
+ * Checks if a URL entry looks suspicious based on its path and metadata
+ */
+function isSuspiciousUrl(url: SitemapUrl, sitemapUrl: string): boolean {
+  const urlObj = new URL(url.loc);
+  const path = urlObj.pathname;
+
+  // Skip empty paths
+  if (!path || path === '/') return false;
+
+  // Metadata-based checks
+  const hasMetadata = !!(url.lastmod || url.priority || url.changefreq);
+  const isFromSitemapIndex = sitemapUrl.includes('sitemap_index.xml') || 
+                            sitemapUrl.includes('sitemapindex.xml');
+
+  // Common patterns for auto-generated or suspicious URLs
+  const suspiciousPatterns = [
+    // Random-looking strings with no clear meaning
+    /^\/[a-zA-Z0-9]{12,}$/,
+    // Random strings with mixed special chars
+    /^\/[a-zA-Z0-9]{8,}[-_][a-zA-Z0-9]{8,}$/,
+    // Common spam patterns
+    /\/(go|click|redirect|track|ref|affiliate)\/[a-zA-Z0-9-_]{10,}$/i
+  ];
+
+  const hasSupiciousPattern = suspiciousPatterns.some(pattern => pattern.test(path));
+
+  // Consider a URL suspicious if:
+  // 1. It has a suspicious pattern AND
+  // 2. Either:
+  //    - It's from a sitemap index and lacks metadata, or
+  //    - It matches multiple suspicious patterns
+  return hasSupiciousPattern && (
+    (isFromSitemapIndex && !hasMetadata) ||
+    suspiciousPatterns.filter(p => p.test(path)).length > 1
+  );
+}
+
+/**
  * Fetches and parses a sitemap from a given URL
  */
 export async function fetchSitemap(url: string, enabledSitemaps?: Set<string>): Promise<SitemapData> {
@@ -223,82 +287,6 @@ export async function fetchSitemap(url: string, enabledSitemaps?: Set<string>): 
     const urlsBySource: Record<string, SitemapUrl[]> = {}
     const uniqueUrls = new Set<string>() // Track unique URLs by their loc
     
-    // Function to try a sitemap URL
-    async function trySitemapUrl(sitemapUrl: string): Promise<SitemapData | null> {
-      if (attemptedUrls.has(sitemapUrl)) {
-        console.debug('Already attempted:', sitemapUrl)
-        return null
-      }
-      
-      // Skip if sitemaps are enabled and this one isn't in the list
-      if (enabledSitemaps && enabledSitemaps.size > 0 && !enabledSitemaps.has(sitemapUrl)) {
-        console.debug('Skipping disabled sitemap:', sitemapUrl)
-        return null
-      }
-      
-      console.debug('Trying sitemap URL:', sitemapUrl)
-      attemptedUrls.add(sitemapUrl)
-      
-      try {
-        const validationResult = await fetchAndValidateXml(sitemapUrl)
-        if (!validationResult) {
-          return null
-        }
-
-        const { content, hasUrls } = validationResult
-        foundSitemaps.push(sitemapUrl)
-        console.debug('Found valid sitemap at:', sitemapUrl, 'Has URLs:', hasUrls)
-        
-        if (hasUrls) {
-          const result = parseSitemapResponse(content, resolvedDomain)
-          
-          // Deduplicate URLs while preserving the newest lastmod
-          if (result.urls?.length > 0) {
-            const newUrls = result.urls.filter((url: SitemapUrl) => {
-              if (!uniqueUrls.has(url.loc)) {
-                uniqueUrls.add(url.loc)
-                return true
-              }
-              // Update lastmod if newer
-              const existingUrl = Object.values(urlsBySource)
-                .flat()
-                .find(u => u.loc === url.loc)
-              if (existingUrl && url.lastmod && (!existingUrl.lastmod || new Date(url.lastmod) > new Date(existingUrl.lastmod))) {
-                existingUrl.lastmod = url.lastmod
-              }
-              return false
-            })
-            
-            if (newUrls.length > 0) {
-              urlsBySource[sitemapUrl] = newUrls
-              return {
-                urls: newUrls,
-                availableSitemaps: foundSitemaps,
-                urlsBySource
-              }
-            }
-          }
-          
-          if (result.availableSitemaps?.length) {
-            // Try sub-sitemaps in sequence to avoid overwhelming the server
-            for (const subSitemapUrl of result.availableSitemaps) {
-              const subResult = await trySitemapUrl(subSitemapUrl)
-              if (subResult?.urls.length) {
-                return {
-                  ...subResult,
-                  availableSitemaps: result.availableSitemaps,
-                  urlsBySource
-                }
-              }
-            }
-          }
-        }
-      } catch (error) {
-        console.debug('Error trying sitemap URL:', sitemapUrl, error)
-      }
-      return null
-    }
-    
     // Try robots.txt sitemaps first, then common locations
     const allSitemapUrls = [
       ...robotsSitemaps,
@@ -307,27 +295,139 @@ export async function fetchSitemap(url: string, enabledSitemaps?: Set<string>): 
     
     console.debug('Attempting sitemap URLs:', allSitemapUrls)
     
-    // Process sitemaps sequentially to avoid overwhelming the server
+    // Process each sitemap URL sequentially to avoid overwhelming the server
     let foundValidUrls = false
+    const urlMetadata = new Map<string, SitemapUrl>() // Track URL metadata
+    const uniqueSitemaps = new Set<string>() // Track unique sitemap URLs
+    const urlToSources = new Map<string, Set<string>>() // Track which sitemaps contain each URL
+
+    console.log('=== Starting Sitemap Processing ===')
     for (const sitemapUrl of allSitemapUrls) {
-      const result = await trySitemapUrl(sitemapUrl)
-      if (result?.urls.length) {
-        foundValidUrls = true
+      try {
+        console.log(`\nProcessing sitemap: ${sitemapUrl}`)
+        
+        // Skip if already processed this sitemap
+        if (uniqueSitemaps.has(sitemapUrl)) {
+          console.log('- Skipping already processed sitemap')
+          continue
+        }
+
+        // Skip if sitemaps are enabled and this one isn't in the list
+        if (enabledSitemaps && enabledSitemaps.size > 0 && !enabledSitemaps.has(sitemapUrl)) {
+          console.log('- Skipping disabled sitemap')
+          continue
+        }
+
+        const validationResult = await fetchAndValidateXml(sitemapUrl)
+        if (!validationResult) {
+          console.log('- Invalid or empty sitemap')
+          continue
+        }
+
+        const { content, hasUrls } = validationResult
+        uniqueSitemaps.add(sitemapUrl)
+        foundSitemaps.push(sitemapUrl)
+        console.log(`- Found valid sitemap with URLs: ${hasUrls}`)
+        
+        if (hasUrls) {
+          const result = parseSitemapResponse(content, resolvedDomain)
+          
+          // Process URLs from this sitemap
+          if (result.urls?.length > 0) {
+            console.log(`- Processing ${result.urls.length} URLs`)
+            
+            result.urls.forEach((url: SitemapUrl) => {
+              try {
+                // Validate URL and normalize
+                const urlObj = new URL(url.loc);
+                const normalizedLoc = normalizeUrl(url.loc);
+                const path = urlObj.pathname;
+                
+                // Compare normalized domains
+                const normalizedInputDomain = normalizeUrl(resolvedDomain);
+                
+                if (!normalizedLoc.startsWith(normalizedInputDomain)) {
+                  console.log(`  - Skipping external URL: ${url.loc}`);
+                  return;
+                }
+                
+                // Skip suspicious URLs
+                if (isSuspiciousUrl(url, sitemapUrl)) {
+                  console.log(`  - Skipping suspicious URL: ${url.loc} (from ${sitemapUrl})`);
+                  if (url.lastmod) console.log(`    Last modified: ${url.lastmod}`);
+                  if (url.priority) console.log(`    Priority: ${url.priority}`);
+                  if (url.changefreq) console.log(`    Change frequency: ${url.changefreq}`);
+                  return;
+                }
+                
+                // Track this URL's presence in current sitemap
+                if (!urlToSources.has(normalizedLoc)) {
+                  urlToSources.set(normalizedLoc, new Set())
+                }
+                urlToSources.get(normalizedLoc)!.add(sitemapUrl)
+                
+                const existing = urlMetadata.get(normalizedLoc)
+                
+                // Keep the URL with the newest lastmod date, or if no lastmod, keep the most recently found one
+                if (!existing || 
+                    (url.lastmod && (!existing.lastmod || new Date(url.lastmod) > new Date(existing.lastmod))) ||
+                    (!url.lastmod && !existing.lastmod)) {
+                  urlMetadata.set(normalizedLoc, {
+                    ...url,
+                    loc: normalizedLoc // Store normalized URL
+                  })
+                  foundValidUrls = true
+                  console.log(`  - Added/Updated URL: ${normalizedLoc}`)
+                }
+              } catch (error) {
+                console.log(`  - Error processing URL: ${url.loc}`, error)
+              }
+            })
+          }
+          
+          // Process sub-sitemaps if any
+          if (result.availableSitemaps?.length) {
+            for (const subSitemapUrl of result.availableSitemaps) {
+              if (!uniqueSitemaps.has(subSitemapUrl)) {
+                allSitemapUrls.push(subSitemapUrl)
+              }
+            }
+          }
+        }
+      } catch (error) {
+        console.debug('Error processing sitemap:', sitemapUrl, error)
       }
     }
 
-    // If we found any URLs, return them all
+    // Return all collected unique URLs
     if (foundValidUrls) {
+      // Get unique URLs sorted by lastmod date (newest first)
+      const uniqueUrls = Array.from(urlMetadata.values()).sort((a, b) => {
+        if (!a.lastmod && !b.lastmod) return 0
+        if (!a.lastmod) return 1
+        if (!b.lastmod) return -1
+        return new Date(b.lastmod).getTime() - new Date(a.lastmod).getTime()
+      })
+
+      // Build urlsBySource using only the deduplicated URLs
+      const newUrlsBySource: Record<string, SitemapUrl[]> = {}
+      for (const url of uniqueUrls) {
+        const sources = urlToSources.get(url.loc)
+        if (sources) {
+          for (const source of sources) {
+            if (!newUrlsBySource[source]) {
+              newUrlsBySource[source] = []
+            }
+            newUrlsBySource[source].push(url)
+          }
+        }
+      }
+
       return {
-        urls: Array.from(uniqueUrls).map(loc => {
-          const urlData = Object.values(urlsBySource)
-            .flat()
-            .find(u => u.loc === loc)
-          return urlData || { loc }
-        }),
+        urls: uniqueUrls,
         resolvedDomain,
-        availableSitemaps: foundSitemaps,
-        urlsBySource
+        availableSitemaps: Array.from(uniqueSitemaps),
+        urlsBySource: newUrlsBySource
       }
     }
 
@@ -368,6 +468,7 @@ export async function fetchSitemap(url: string, enabledSitemaps?: Set<string>): 
 export function organizeUrlTree(urls: SitemapUrl[]) {
   const tree: Record<string, SitemapUrl[]> = {}
   
+  // URLs are already deduplicated, just organize them
   urls.forEach(url => {
     try {
       const urlObj = new URL(url.loc)

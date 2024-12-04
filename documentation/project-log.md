@@ -1,6 +1,29 @@
 # Project Development Log
 
-## December 4, 2023
+## Latest Updates
+
+### December 4, 2024
+- Fixed PDF export functionality:
+  - Configured PDFKit as external package in Next.js
+  - Implemented proper page sizing for screenshots
+  - Created A4 cover page with project info
+  - Maintained original screenshot dimensions and aspect ratios
+  - Removed metadata text for cleaner presentation
+
+- Improved batch processing:
+  - Added auto-refresh status updates
+  - Implemented progress tracking
+  - Added cancel functionality
+  - Fixed device configuration issues
+
+- Enhanced ZIP export:
+  - Added timestamp to filenames
+  - Consolidated metadata into single JSON file
+  - Improved file organization
+
+## Previous Updates
+
+### December 4, 2023
 
 ### API Route Reorganization
 - Cleaned up API route structure

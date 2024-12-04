@@ -77,40 +77,40 @@
   - [ ] Error recovery
 
 ### Frontend Features
-- [ ] Screenshot preview
+- [x] Screenshot preview
   - [x] Basic preview
-  - [ ] Zoom/pan controls
-  - [ ] Thumbnail generation
-  - [ ] Quick view modal
+  - [x] Zoom/pan controls
+  - [x] Thumbnail generation
+  - [x] Quick view modal
 - [x] Capture settings configuration
   - [x] Device profiles
   - [x] Delay controls
   - [x] Element hiding UI
-  - [ ] Batch size adjustment
-- [ ] Batch processing controls
-  - [ ] Start/pause/resume
-  - [ ] Cancel operation
+  - [x] Batch size adjustment
+- [x] Batch processing controls
+  - [x] Start/pause/resume
+  - [x] Cancel operation
+  - [x] Progress visualization
   - [ ] Priority adjustment
-  - [ ] Progress visualization
-- [ ] Error recovery and retry options
-  - [ ] Error details display
-  - [ ] Manual retry triggers
-  - [ ] Skip problem URLs
-  - [ ] Batch retry support
+- [x] Error recovery and retry options
+  - [x] Error details display
+  - [x] Manual retry triggers
+  - [x] Skip problem URLs
+  - [x] Batch retry support
 
 ## Phase 3: Image Management
 
 ### Storage and Organization
-- [ ] Image storage system
-- [ ] Metadata management
+- [x] Image storage system
+- [x] Metadata management
 - [ ] Version control
-- [ ] Export functionality
+- [x] Export functionality
 
 ### User Interface
-- [ ] Gallery view
+- [x] Gallery view
 - [ ] Search and filter
-- [ ] Bulk operations
-- [ ] Download options
+- [x] Bulk operations
+- [x] Download options
 
 ## Technical Requirements
 

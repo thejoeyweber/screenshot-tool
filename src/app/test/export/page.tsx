@@ -60,22 +60,33 @@ export default function TestExport() {
       })
 
       if (!response.ok) {
-        throw new Error('Export failed')
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Export failed')
       }
 
-      // Get the blob from response
+      // Get the blob and filename from response
       const blob = await response.blob()
+      const disposition = response.headers.get('Content-Disposition')
+      let filename = `screenshots.${format}`
+      
+      // Try to get filename from Content-Disposition
+      if (disposition) {
+        const matches = /filename=(.+)$/.exec(disposition)
+        if (matches?.[1]) {
+          filename = matches[1].replace(/["']/g, '')
+        }
+      }
       
       // Download the file
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `screenshots.${format}`
+      a.download = filename
       a.click()
       URL.revokeObjectURL(url)
     } catch (error) {
       console.error('Export error:', error)
-      alert('Export failed')
+      alert(error instanceof Error ? error.message : 'Export failed')
     } finally {
       setLoading(false)
     }

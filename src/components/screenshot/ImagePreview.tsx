@@ -1,92 +1,86 @@
+'use client'
+
 import { useState } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
-import { Screenshot } from '@/types/screenshot'
+import type { Screenshot } from '@/types/screenshot'
 import { Button } from '@/components/ui/button'
-import { ZoomIn, ZoomOut, Maximize2, X } from 'lucide-react'
+import { X } from 'lucide-react'
+import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch'
 
 interface ImagePreviewProps {
   screenshot: Screenshot
   onClose?: () => void
+  controls?: {
+    zoom?: boolean
+    pan?: boolean
+    fullscreen?: boolean
+  }
 }
 
-export function ImagePreview({ screenshot, onClose }: ImagePreviewProps) {
-  const [scale, setScale] = useState(1)
+export function ImagePreview({ screenshot, onClose, controls = {} }: ImagePreviewProps) {
   const [isFullscreen, setIsFullscreen] = useState(false)
 
-  const zoomIn = () => setScale(s => Math.min(s + 0.25, 3))
-  const zoomOut = () => setScale(s => Math.max(s - 0.25, 0.5))
-  const toggleFullscreen = () => setIsFullscreen(f => !f)
+  const handleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen()
+      setIsFullscreen(true)
+    } else {
+      document.exitFullscreen()
+      setIsFullscreen(false)
+    }
+  }
 
   return (
-    <AnimatePresence>
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        className={`relative ${
-          isFullscreen ? 'fixed inset-0 z-50 bg-background/80 backdrop-blur-sm' : 'w-full h-full'
-        }`}
-      >
-        <div className="absolute top-4 right-4 flex items-center gap-2 z-10">
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={zoomOut}
-            disabled={scale <= 0.5}
-          >
-            <ZoomOut className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={zoomIn}
-            disabled={scale >= 3}
-          >
-            <ZoomIn className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={toggleFullscreen}
-          >
-            <Maximize2 className="h-4 w-4" />
-          </Button>
-          {onClose && (
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={onClose}
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          )}
-        </div>
-
-        <motion.div
-          className={`relative overflow-hidden ${
-            isFullscreen ? 'w-screen h-screen' : 'w-full aspect-auto'
-          }`}
+    <div className="relative w-full h-full overflow-hidden bg-black/5 rounded-lg">
+      {onClose && (
+        <Button
+          variant="ghost"
+          size="icon"
+          className="absolute top-2 right-2 z-10"
+          onClick={onClose}
         >
-          <motion.div
-            drag
-            dragConstraints={{
-              top: -200,
-              left: -200,
-              right: 200,
-              bottom: 200
-            }}
-            dragElastic={0.1}
-            style={{ scale }}
-            className="relative w-full h-full"
-          >
-            <img
-              src={`data:image/jpeg;base64,${screenshot.imageData.toString('base64')}`}
-              alt={screenshot.title}
-              className="w-full h-full object-contain"
-            />
-          </motion.div>
-        </motion.div>
-      </motion.div>
-    </AnimatePresence>
+          <X className="h-4 w-4" />
+        </Button>
+      )}
+
+      <TransformWrapper
+        initialScale={1}
+        minScale={0.5}
+        maxScale={3}
+        centerOnInit
+        wheel={{ disabled: !controls.zoom }}
+        panning={{ disabled: !controls.pan }}
+      >
+        {({ zoomIn, zoomOut, resetTransform }) => (
+          <>
+            {controls.zoom && (
+              <div className="absolute bottom-2 right-2 z-10 flex gap-2">
+                <Button variant="ghost" size="sm" onClick={() => zoomOut()}>
+                  Zoom Out
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => zoomIn()}>
+                  Zoom In
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => resetTransform()}>
+                  Reset
+                </Button>
+                {controls.fullscreen && (
+                  <Button variant="ghost" size="sm" onClick={handleFullscreen}>
+                    {isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
+                  </Button>
+                )}
+              </div>
+            )}
+            <TransformComponent>
+              <img
+                src={`data:image/jpeg;base64,${screenshot.imageData.toString('base64')}`}
+                alt={screenshot.title || screenshot.url}
+                className="w-full h-full object-contain"
+                draggable={false}
+              />
+            </TransformComponent>
+          </>
+        )}
+      </TransformWrapper>
+    </div>
   )
 } 

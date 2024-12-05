@@ -5,6 +5,10 @@
 ### `/src`
 - **`/app`** - Next.js App Router pages and layouts
   - `/api` - API routes
+    - `/export` - Export functionality
+      - `/[format]` - Dynamic format handling (PDF/ZIP)
+    - `/screenshot` - Screenshot capture endpoints
+      - `/capture` - Screenshot capture handler
     - `/batch` - Batch processing endpoints
       - `/[jobId]/control` - Job control endpoint
     - `/test` - Testing endpoints
@@ -17,8 +21,17 @@
   - `resource.ts` - Resource monitoring and management
   - `storage.ts` - File storage with singleton pattern
   - `screenshot.ts` - Screenshot capture and optimization
+  - `export.ts` - Export functionality for PDF and ZIP
 
 ### Key Features
+
+### Export System
+- PDF generation with cover page
+- ZIP archive with metadata
+- Session-based file access
+- Image quality preservation
+- Progress tracking
+- Error handling
 
 ### Batch Processing
 - Parallel processing with chunk size of 3
@@ -49,6 +62,7 @@
 - Progress visualization
 - Concurrent processing indicators
 - Error handling and loading states
+- Download page with export options
 
 ## Development Guidelines
 

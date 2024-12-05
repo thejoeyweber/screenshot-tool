@@ -83,7 +83,19 @@ export default function DownloadPage() {
       return
     }
 
-    setSessionId(sid)
+    // Get the storage session ID from the first screenshot
+    const storageSessionId = session.results.screenshots[0].metadata?.sessionId
+    if (!storageSessionId) {
+      toast({
+        title: "Error",
+        description: "No storage session found",
+        variant: "destructive"
+      })
+      router.push('/')
+      return
+    }
+
+    setSessionId(storageSessionId)
     setMetadata({
       title: session.metadata?.name || 'Website Screenshots',
       totalPages: session.results.screenshots.length,
@@ -99,14 +111,41 @@ export default function DownloadPage() {
     
     setExporting(format)
     try {
-      const response = await fetch(`/api/export?session=${sessionId}&format=${format}`)
-      if (!response.ok) throw new Error('Export failed')
+      const response = await fetch(`/api/export?format=${format}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          sessionId,
+          options: {
+            metadata: true
+          }
+        })
+      })
+      
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Export failed')
+      }
       
       const blob = await response.blob()
+      const disposition = response.headers.get('Content-Disposition')
+      let filename = `screenshots.${format}`
+      
+      // Try to get filename from Content-Disposition
+      if (disposition) {
+        const matches = /filename="(.+)"/.exec(disposition)
+        if (matches?.[1]) {
+          filename = matches[1]
+        }
+      }
+      
+      // Download the file
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `screenshots.${format}`
+      a.download = filename
       document.body.appendChild(a)
       a.click()
       window.URL.revokeObjectURL(url)

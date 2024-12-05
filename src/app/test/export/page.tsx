@@ -42,7 +42,7 @@ export default function TestExport() {
     try {
       const screenshots = await getTestScreenshots()
       
-      const response = await fetch('/api/export', {
+      const response = await fetch(`/api/export/${format}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -52,6 +52,7 @@ export default function TestExport() {
             ...s,
             imageData: s.imageData.toString('base64')
           })),
+          sessionId: screenshots[0]?.metadata?.sessionId,
           options: {
             format,
             metadata: true

@@ -28,6 +28,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { ImagePreview } from '@/components/screenshot/ImagePreview'
+import { ChevronLeft } from 'lucide-react'
 
 export default function CustomizePage() {
   const router = useRouter()
@@ -44,6 +46,7 @@ export default function CustomizePage() {
     description: '',
     template: 'modern'
   })
+  const [previewIndex, setPreviewIndex] = useState(0)
 
   // Load session data
   useEffect(() => {
@@ -142,6 +145,14 @@ export default function CustomizePage() {
     router.push(`/download?session=${sessionId}`)
   }
 
+  const handleNextPreview = () => {
+    setPreviewIndex(prev => Math.min(prev + 1, order.length - 1))
+  }
+
+  const handlePrevPreview = () => {
+    setPreviewIndex(prev => Math.max(prev - 1, 0))
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -231,8 +242,40 @@ export default function CustomizePage() {
               </TabsContent>
 
               <TabsContent value="preview" className="space-y-4">
-                <div className="aspect-[3/4] bg-muted rounded-lg flex items-center justify-center">
-                  <p className="text-muted-foreground">PDF Preview</p>
+                <div className="relative h-[500px]">
+                  {screenshots.length > 0 && (
+                    <>
+                      <ImagePreview
+                        screenshot={screenshots.find(s => s.id === order[previewIndex])!}
+                        controls={{
+                          zoom: true,
+                          pan: true,
+                          fullscreen: true
+                        }}
+                      />
+                      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-4 bg-background/80 backdrop-blur-sm rounded-full px-4 py-2">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={handlePrevPreview}
+                          disabled={previewIndex <= 0}
+                        >
+                          <ChevronLeft className="h-4 w-4" />
+                        </Button>
+                        <span className="text-sm">
+                          Page {previewIndex + 1} of {order.length}
+                        </span>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={handleNextPreview}
+                          disabled={previewIndex >= order.length - 1}
+                        >
+                          <ChevronRight className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </>
+                  )}
                 </div>
               </TabsContent>
             </Tabs>

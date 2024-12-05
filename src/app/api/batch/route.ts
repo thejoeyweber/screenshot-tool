@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { batchService } from '@/services/batch'
 import { deviceConfigs } from '@/config/devices'
+import { validateUrl } from '@/services/url-validation'
 import { z } from 'zod'
 
 // Validation schemas
@@ -56,15 +57,36 @@ export async function POST(req: Request) {
         deviceConfig: deviceConfigs.desktop
       }
     }
+
+    // Validate URLs
+    const validUrls = await Promise.all(
+      body.urls.map(async (url: string) => {
+        const validation = validateUrl(url)
+        return validation.isValid ? validation.normalizedUrl || url : null
+      })
+    )
+
+    const filteredUrls = validUrls.filter((url): url is string => url !== null)
+    if (filteredUrls.length === 0) {
+      return NextResponse.json({ error: 'No valid URLs provided' }, { status: 400 })
+    }
+
+    // Update body with validated URLs
+    body.urls = filteredUrls
     
     const validated = createBatchSchema.parse(body)
     const jobId = await batchService.addJob(validated.urls, validated.config)
     
-    return NextResponse.json({ jobId })
+    return NextResponse.json({
+      success: true,
+      jobId,
+      totalUrls: filteredUrls.length,
+      skippedUrls: body.urls.length - filteredUrls.length
+    })
   } catch (error) {
     console.error('Batch creation error:', error)
     return NextResponse.json(
-      { error: 'Invalid request data' },
+      { error: error instanceof Error ? error.message : 'Invalid request data' },
       { status: 400 }
     )
   }
@@ -75,10 +97,8 @@ export async function GET(req: Request) {
   const jobId = searchParams.get('jobId')
 
   if (!jobId) {
-    return NextResponse.json(
-      { error: 'Job ID is required' },
-      { status: 400 }
-    )
+    const stats = await batchService.getStats()
+    return NextResponse.json({ stats })
   }
 
   const job = await batchService.getJob(jobId)
@@ -100,4 +120,39 @@ export async function GET(req: Request) {
   })
 
   return NextResponse.json(sanitizeJob(job))
+}
+
+export async function DELETE(request: Request) {
+  const { searchParams } = new URL(request.url)
+  const jobId = searchParams.get('jobId')
+
+  if (!jobId) {
+    return NextResponse.json({ error: 'Job ID is required' }, { status: 400 })
+  }
+
+  await batchService.cancelJob(jobId)
+  return NextResponse.json({ success: true })
+}
+
+export async function PATCH(request: Request) {
+  const { searchParams } = new URL(request.url)
+  const jobId = searchParams.get('jobId')
+  const action = searchParams.get('action')
+
+  if (!jobId || !action) {
+    return NextResponse.json({ error: 'Job ID and action are required' }, { status: 400 })
+  }
+
+  switch (action) {
+    case 'pause':
+      await batchService.pauseJob(jobId)
+      break
+    case 'resume':
+      await batchService.resumeJob(jobId)
+      break
+    default:
+      return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
+  }
+
+  return NextResponse.json({ success: true })
 } 

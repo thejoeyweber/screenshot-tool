@@ -205,9 +205,9 @@ export default function ConfigPage() {
           deviceConfig: device,
           delay,
           hideSelectors: hideCookieBanners ? ['.cookie-banner', '.cookie-consent', '#cookie-notice'] : [],
-          maxDimension: 10000, // 10000px max dimension
-          quality: 90, // 90% JPEG quality
-          maxFileSize: 10 * 1024 * 1024 // 10MB
+          maxDimension: 10000,
+          quality: 90,
+          maxFileSize: 10 * 1024 * 1024
         }
       })
     }, 500) // Debounce saves

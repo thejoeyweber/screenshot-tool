@@ -21,6 +21,7 @@ import { useUrlSession } from "@/hooks/useUrlSession"
 import type { BatchJob } from "@/types/batch"
 import type { Screenshot } from "@/types/screenshot"
 import { normalizeUrl } from '@/services/url'
+import { deviceConfigs, type DeviceName } from '@/config/devices'
 
 interface BatchResult extends Screenshot {
   error?: string
@@ -78,57 +79,72 @@ export default function GeneratePage() {
     }
 
     setSessionId(sid)
+    setLoading(false)
+  }, [searchParams, getSession, router, toast])
 
-    // Start batch processing
-    const startBatch = async () => {
-      try {
-        // Normalize URLs before sending
-        const normalizedUrls = session.urls.map(url => normalizeUrl(url))
+  // Add start batch handler
+  const handleStartBatch = async () => {
+    try {
+      const session = getSession(sessionId!)
+      if (!session?.config?.deviceConfig) {
+        throw new Error('Invalid session configuration')
+      }
 
-        const response = await fetch('/api/batch', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            urls: normalizedUrls,
-            config: session.config
-          })
-        })
-
-        if (!response.ok) {
-          throw new Error('Failed to start batch processing')
-        }
-
-        const data = await response.json()
-        setCurrentJobId(data.jobId)
-        setIsPolling(true)
-        
-        // Update session with job ID
-        updateSession(sid, {
-          currentJobId: data.jobId,
-          results: {
-            order: [],
-            screenshots: [],
-            annotations: {}
+      const normalizedUrls = session.urls.map(url => normalizeUrl(url))
+      
+      const deviceName = session.config.deviceConfig as DeviceName
+      if (!Object.keys(deviceConfigs).includes(deviceName)) {
+        throw new Error('Invalid device configuration')
+      }
+      
+      const deviceConfig = deviceConfigs[deviceName]
+      
+      const response = await fetch('/api/batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          urls: normalizedUrls,
+          config: {
+            delay: session.config.delay ?? 2000,
+            hideSelectors: session.config.hideSelectors ?? [],
+            maxDimension: session.config.maxDimension ?? 10000,
+            quality: session.config.quality ?? 90,
+            maxFileSize: session.config.maxFileSize ?? (10 * 1024 * 1024),
+            deviceConfig
           }
         })
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to start batch processing')
-        toast({
-          title: "Error",
-          description: err instanceof Error ? err.message : 'Failed to start batch processing',
-          variant: "destructive"
-        })
-      } finally {
-        setLoading(false)
-      }
-    }
+      })
 
-    startBatch()
-  }, [searchParams, getSession, router, toast, updateSession])
+      if (!response.ok) {
+        throw new Error('Failed to start batch processing')
+      }
+
+      const data = await response.json()
+      setCurrentJobId(data.jobId)
+      setIsPolling(true)
+      
+      updateSession(sessionId!, {
+        currentJobId: data.jobId,
+        results: {
+          order: [],
+          screenshots: [],
+          annotations: {}
+        }
+      })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to start batch processing')
+      toast({
+        title: "Error",
+        description: err instanceof Error ? err.message : 'Failed to start batch processing',
+        variant: "destructive"
+      })
+    }
+  }
 
   // Poll for job status
   useEffect(() => {
     if (!currentJobId || !isPolling) return
+
     console.log('Starting polling for job:', currentJobId)
 
     const interval = setInterval(async () => {
@@ -137,62 +153,54 @@ export default function GeneratePage() {
         if (!response.ok) throw new Error('Failed to get status')
         const job = await response.json()
 
-        console.log('Received job update:', {
+        console.log('Polling response:', {
+          jobId: currentJobId,
           status: job.status,
-          progress: job.progress,
-          resultsCount: job.results?.length
+          progress: job.progress
         })
 
-        // Always update current job first
         setCurrentJob(job)
 
-        // Handle completion states
         if (['completed', 'failed', 'completed_with_errors'].includes(job.status)) {
-          console.log('Job completed with status:', job.status)
-          
-          // Stop polling immediately
-          clearInterval(interval)
           setIsPolling(false)
           
-          // Update session with results if we have any
-          if (sessionId && job.results?.length > 0) {
-            console.log('Updating session with results:', job.results.length)
+          if (sessionId) {
+            const results = job.results || []
             await updateSession(sessionId, {
               results: {
-                screenshots: job.results,
-                order: job.results.map((r: { id: string }) => r.id),
+                screenshots: results,
+                order: results.map((r: { id: string }) => r.id),
                 annotations: {}
               }
             })
 
-            // Show completion message
             toast({
               title: job.status === 'failed' ? 'Process Failed' : 'Process Complete',
-              description: job.error || `Processed ${job.results.length} of ${job.urls.length} URLs`,
+              description: job.error || `Processed ${results.length} of ${job.urls.length} URLs`,
               variant: job.status === 'failed' ? 'destructive' : 'default'
             })
 
-            // Only auto-continue if we have all results
-            if (job.status === 'completed' && job.results.length === job.urls.length) {
-              console.log('Auto-continuing to customize page')
-              setTimeout(() => {
-                router.push(`/customize?session=${sessionId}`)
-              }, 2000)
+            if (job.status === 'completed' && results.length === job.urls.length) {
+              setTimeout(() => router.push(`/customize?session=${sessionId}`), 2000)
             }
+          }
+
+          // Reset states after completion
+          if (job.status === 'failed') {
+            setCurrentJobId(null)
+            setCurrentJob(null)
           }
         }
       } catch (err) {
-        console.error('Status polling error:', err)
+        console.error('Polling error:', err)
         setError(err instanceof Error ? err.message : 'Failed to get job status')
         setIsPolling(false)
-        clearInterval(interval)
+        setCurrentJobId(null)
+        setCurrentJob(null)
       }
-    }, 1000)
+    }, 2000)
 
-    return () => {
-      console.log('Cleaning up polling interval')
-      clearInterval(interval)
-    }
+    return () => clearInterval(interval)
   }, [currentJobId, isPolling, sessionId, updateSession, router, toast])
 
   const handleRetry = async () => {
@@ -257,7 +265,7 @@ export default function GeneratePage() {
         transition={{ duration: 0.5 }}
       >
         <div className="space-y-2">
-          <h1 className="text-2xl font-bold">Generating Screenshots</h1>
+          <h1 className="text-2xl font-bold">Generate Screenshots</h1>
           {currentJob && (
             <p className="text-muted-foreground">
               Processing {currentJob.results.length} of {currentJob.urls.length} pages...
@@ -276,7 +284,23 @@ export default function GeneratePage() {
             </div>
           )}
 
-          <ScrollArea className="h-[300px] pr-4">
+          <div className="space-y-4">
+            <Button
+              onClick={handleStartBatch}
+              disabled={!!currentJobId || loading}
+              className="w-full"
+            >
+              Start Generation
+            </Button>
+
+            {error && (
+              <Alert variant="destructive">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+          </div>
+
+          <ScrollArea className="h-[300px]">
             <div className="space-y-2">
               {currentJob?.urls.map((url, index) => {
                 const status = getUrlStatus(url, index)
@@ -299,27 +323,19 @@ export default function GeneratePage() {
               })}
             </div>
           </ScrollArea>
-
-          {error && (
-            <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
-
-          <div className="flex justify-end gap-2">
-            {currentJob?.status === 'failed' && (
-              <Button onClick={handleRetry}>
-                Retry
-              </Button>
-            )}
-            {(currentJob?.status === 'completed' || currentJob?.status === 'completed_with_errors') && (
-              <Button onClick={handleContinue}>
-                Continue <ChevronRight className="ml-2 h-4 w-4" />
-              </Button>
-            )}
-          </div>
         </Card>
+
+        <div className="flex justify-between">
+          <Button variant="outline" onClick={() => window.history.back()}>
+            Back
+          </Button>
+          {currentJob?.status === 'completed' && (
+            <Button onClick={handleContinue}>
+              Continue to Customize
+              <ChevronRight className="ml-2 h-4 w-4" />
+            </Button>
+          )}
+        </div>
       </motion.div>
     </div>
   )

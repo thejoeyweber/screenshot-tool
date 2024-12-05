@@ -13,7 +13,7 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { AlertCircle, Loader2, Upload, List, Globe, FileWarning, FileCheck } from "lucide-react"
+import { AlertCircle, Loader2, Upload, List, Globe, FileWarning, FileCheck, Search } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import { fetchSitemap, organizeUrlTree, type SitemapUrl } from "@/services/sitemap"
@@ -74,37 +74,48 @@ export default function SitemapPage() {
   const [selectedUrls, setSelectedUrls] = useState<Set<string>>(new Set())
   const [availableSitemaps, setAvailableSitemaps] = useState<string[]>([])
   const [enabledSitemaps, setEnabledSitemaps] = useState<Set<string>>(new Set())
+  const [searchMode, setSearchMode] = useState<'primary' | 'secondary' | 'extended'>('primary')
+  const [hasMoreOptions, setHasMoreOptions] = useState(false)
 
-  const loadSitemap = async (targetUrl: string) => {
+  const loadSitemap = async (targetUrl: string, sitemaps?: Set<string>) => {
     setLoading(true)
     setError(undefined)
     setErrorType(undefined)
     
     try {
-      const data = await fetchSitemap(targetUrl, enabledSitemaps)
+      console.log('Fetching sitemap for:', targetUrl, 'mode:', searchMode)
+      const data = await fetchSitemap(targetUrl, sitemaps, searchMode)
+      console.log('Sitemap response:', data)
+      
       if (data.error) {
         setError(data.error)
         setErrorType(data.errorType)
         setUrlGroups({})
         if (data.availableSitemaps) {
+          console.log('Available sitemaps:', data.availableSitemaps)
           setAvailableSitemaps(data.availableSitemaps)
-          // Auto-enable all sitemaps initially
-          setEnabledSitemaps(new Set(data.availableSitemaps))
-        }
-      } else {
-        const groups = organizeUrlTree(data.urls)
-        setUrlGroups(groups)
-        // Auto-select all URLs initially
-        setSelectedUrls(new Set(data.urls.map(u => u.loc)))
-        if (data.availableSitemaps) {
-          setAvailableSitemaps(data.availableSitemaps)
-          // Auto-enable all sitemaps initially if not already set
-          if (enabledSitemaps.size === 0) {
+          if (!sitemaps) {
             setEnabledSitemaps(new Set(data.availableSitemaps))
           }
         }
+        if (data.hasMoreOptions) {
+          setHasMoreOptions(true)
+        }
+      } else {
+        const groups = organizeUrlTree(data.urls)
+        console.log('Parsed URL groups:', groups)
+        setUrlGroups(groups)
+        setSelectedUrls(new Set(data.urls.map(u => u.loc)))
+        if (data.availableSitemaps) {
+          setAvailableSitemaps(data.availableSitemaps)
+          if (!sitemaps) {
+            setEnabledSitemaps(new Set(data.availableSitemaps))
+          }
+        }
+        setHasMoreOptions(data.hasMoreOptions || false)
       }
     } catch (err) {
+      console.error('Sitemap load error:', err)
       setError(err instanceof Error ? err.message : 'Failed to load sitemap')
       setUrlGroups({})
     } finally {
@@ -125,12 +136,23 @@ export default function SitemapPage() {
     e.preventDefault()
     if (!url) return
     
-    // Update URL in browser history
     const newUrl = new URL(window.location.href)
     newUrl.searchParams.set('url', url)
     router.push(newUrl.pathname + newUrl.search)
     
     loadSitemap(url)
+  }
+
+  const handleSitemapToggle = (sitemapUrl: string) => {
+    const newEnabled = new Set(enabledSitemaps)
+    if (newEnabled.has(sitemapUrl)) {
+      newEnabled.delete(sitemapUrl)
+    } else {
+      newEnabled.add(sitemapUrl)
+    }
+    setEnabledSitemaps(newEnabled)
+    
+    loadSitemap(url, newEnabled)
   }
 
   const handleSitemapSelect = (sitemapUrl: string) => {
@@ -167,10 +189,8 @@ export default function SitemapPage() {
     }
     
     try {
-      // Create a new session with the selected URLs
       const sessionId = createSession(url, Array.from(selectedUrls))
       
-      // Navigate to setup with just the session ID
       const setupUrl = new URL('/setup', window.location.origin)
       setupUrl.searchParams.set('session', sessionId)
       router.push(setupUrl.pathname + setupUrl.search)
@@ -180,16 +200,9 @@ export default function SitemapPage() {
     }
   }
 
-  const handleSitemapToggle = (sitemapUrl: string) => {
-    const newEnabled = new Set(enabledSitemaps)
-    if (newEnabled.has(sitemapUrl)) {
-      newEnabled.delete(sitemapUrl)
-    } else {
-      newEnabled.add(sitemapUrl)
-    }
-    setEnabledSitemaps(newEnabled)
-    
-    // TODO: Refetch URLs considering only enabled sitemaps
+  const handleSearchMore = () => {
+    const nextMode = searchMode === 'primary' ? 'secondary' : 'extended'
+    setSearchMode(nextMode)
     loadSitemap(url)
   }
 
@@ -239,10 +252,22 @@ export default function SitemapPage() {
                       </AlertDescription>
                     </Alert>
 
-                    {showAlternatives && (
+                    {(showAlternatives || hasMoreOptions) && (
                       <div className="border rounded-lg p-4 space-y-4">
                         <h3 className="font-medium">Alternative Options:</h3>
                         <div className="grid gap-4 md:grid-cols-2">
+                          {hasMoreOptions && (
+                            <Button 
+                              variant="outline" 
+                              className="w-full" 
+                              onClick={handleSearchMore}
+                            >
+                              <Search className="h-4 w-4 mr-2" />
+                              {searchMode === 'primary' 
+                                ? 'Search Additional Locations' 
+                                : 'Search Extended Locations'}
+                            </Button>
+                          )}
                           <Button variant="outline" className="w-full" disabled>
                             <Upload className="h-4 w-4 mr-2" />
                             Upload Sitemap XML

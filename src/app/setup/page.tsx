@@ -1,24 +1,118 @@
+/**
+ * Setup Page
+ * 
+ * Purpose: Project setup and metadata configuration
+ * Functionality: Reads session from URL, allows project configuration
+ */
+
 'use client'
 
-import { useState } from "react";
-import { motion } from "framer-motion";
-import { ChevronRight } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
+import { useState, useEffect } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
+import { motion } from "framer-motion"
+import { ChevronRight } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Card } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
+import { Label } from "@/components/ui/label"
+import { Switch } from "@/components/ui/switch"
+import { useToast } from "@/hooks/use-toast"
+import { useUrlSession } from "@/hooks/useUrlSession"
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from "@/components/ui/select"
 
 export default function SetupPage() {
-  const [saveProject, setSaveProject] = useState(false);
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const { toast } = useToast()
+  const { getSession, updateSession } = useUrlSession()
+  
+  const [sessionId, setSessionId] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [name, setName] = useState("")
+  const [description, setDescription] = useState("")
+  const [template, setTemplate] = useState("default")
+  const [saveProject, setSaveProject] = useState(false)
+
+  // Load session data
+  useEffect(() => {
+    const sid = searchParams.get('session')
+    if (!sid) {
+      toast({
+        title: "Session Error",
+        description: "No session ID provided",
+        variant: "destructive"
+      })
+      router.push('/')
+      return
+    }
+
+    const session = getSession(sid)
+    if (!session) {
+      toast({
+        title: "Session Error",
+        description: "Invalid or expired session",
+        variant: "destructive"
+      })
+      router.push('/')
+      return
+    }
+
+    setSessionId(sid)
+
+    // Load existing metadata if any
+    if (session.metadata) {
+      setName(session.metadata.name)
+      setDescription(session.metadata.description || '')
+      setTemplate(session.metadata.template)
+      setSaveProject(session.metadata.saveProject)
+    }
+
+    setLoading(false)
+  }, [searchParams, getSession, router, toast])
+
+  // Auto-save on form changes
+  useEffect(() => {
+    if (!sessionId) return
+
+    const saveTimeout = setTimeout(() => {
+      updateSession(sessionId, {
+        metadata: {
+          name: name || 'Untitled Project',
+          description,
+          template,
+          saveProject
+        }
+      })
+    }, 500) // Debounce saves
+
+    return () => clearTimeout(saveTimeout)
+  }, [sessionId, name, description, template, saveProject, updateSession])
+
+  const handleContinue = () => {
+    if (!sessionId) return
+    router.push(`/config?session=${sessionId}`)
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="text-muted-foreground"
+        >
+          Loading...
+        </motion.div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-4">
@@ -43,6 +137,8 @@ export default function SetupPage() {
                 id="name"
                 placeholder="My Website Screenshots"
                 className="w-full"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
               />
             </div>
 
@@ -52,12 +148,14 @@ export default function SetupPage() {
                 id="description"
                 placeholder="Brief description of your screenshot project"
                 className="resize-none"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
               />
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="template">Template</Label>
-              <Select defaultValue="default">
+              <Select value={template} onValueChange={setTemplate}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select a template" />
                 </SelectTrigger>
@@ -110,12 +208,12 @@ export default function SetupPage() {
           <Button variant="outline" onClick={() => window.history.back()}>
             Back
           </Button>
-          <Button onClick={() => window.location.href = "/config"}>
+          <Button onClick={handleContinue}>
             Continue to Configuration
             <ChevronRight className="ml-2 h-4 w-4" />
           </Button>
         </div>
       </motion.div>
     </div>
-  );
+  )
 } 

@@ -1,6 +1,15 @@
+/**
+ * Download Page
+ * 
+ * Purpose: Download screenshots in various formats
+ * Functionality: Export as PDF, ZIP, or individual files
+ */
+
 'use client'
 
-import { motion } from "framer-motion";
+import { useState, useEffect } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
+import { motion } from "framer-motion"
 import {
   Download,
   FileDown,
@@ -8,9 +17,12 @@ import {
   FileText,
   File,
   Share2,
-} from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
+  Loader2
+} from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Card } from "@/components/ui/card"
+import { useToast } from "@/hooks/use-toast"
+import { useUrlSession } from "@/hooks/useUrlSession"
 import {
   Table,
   TableBody,
@@ -18,9 +30,117 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table";
+} from "@/components/ui/table"
 
 export default function DownloadPage() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const { toast } = useToast()
+  const { getSession } = useUrlSession()
+  
+  const [sessionId, setSessionId] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [exporting, setExporting] = useState<'pdf' | 'zip' | null>(null)
+  const [metadata, setMetadata] = useState({
+    title: '',
+    totalPages: 0,
+    pdfSize: '0 MB',
+    zipSize: '0 MB',
+    created: new Date()
+  })
+
+  // Load session data
+  useEffect(() => {
+    const sid = searchParams.get('session')
+    if (!sid) {
+      toast({
+        title: "Session Error",
+        description: "No session ID provided",
+        variant: "destructive"
+      })
+      router.push('/')
+      return
+    }
+
+    const session = getSession(sid)
+    if (!session) {
+      toast({
+        title: "Session Error",
+        description: "Invalid or expired session",
+        variant: "destructive"
+      })
+      router.push('/')
+      return
+    }
+
+    if (!session.results?.screenshots?.length) {
+      toast({
+        title: "Error",
+        description: "No screenshots found in session",
+        variant: "destructive"
+      })
+      router.push('/')
+      return
+    }
+
+    setSessionId(sid)
+    setMetadata({
+      title: session.metadata?.name || 'Website Screenshots',
+      totalPages: session.results.screenshots.length,
+      pdfSize: '~5 MB',
+      zipSize: '~20 MB',
+      created: new Date()
+    })
+    setLoading(false)
+  }, [searchParams, getSession, router, toast])
+
+  const handleExport = async (format: 'pdf' | 'zip') => {
+    if (!sessionId) return
+    
+    setExporting(format)
+    try {
+      const response = await fetch(`/api/export?session=${sessionId}&format=${format}`)
+      if (!response.ok) throw new Error('Export failed')
+      
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `screenshots.${format}`
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+      
+      toast({
+        title: "Success",
+        description: `Screenshots exported as ${format.toUpperCase()}`,
+      })
+    } catch (err) {
+      toast({
+        title: "Export Failed",
+        description: err instanceof Error ? err.message : 'Failed to export screenshots',
+        variant: "destructive"
+      })
+    } finally {
+      setExporting(null)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="text-muted-foreground"
+        >
+          Loading...
+        </motion.div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-4">
       <motion.div
@@ -54,8 +174,17 @@ export default function DownloadPage() {
                   </p>
                 </div>
               </div>
-              <Button className="w-full" size="lg">
-                <FileDown className="mr-2 h-4 w-4" />
+              <Button 
+                className="w-full" 
+                size="lg"
+                onClick={() => handleExport('pdf')}
+                disabled={exporting === 'pdf'}
+              >
+                {exporting === 'pdf' ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <FileDown className="mr-2 h-4 w-4" />
+                )}
                 Download PDF
               </Button>
             </Card>
@@ -78,8 +207,18 @@ export default function DownloadPage() {
                   </p>
                 </div>
               </div>
-              <Button className="w-full" size="lg" variant="outline">
-                <Download className="mr-2 h-4 w-4" />
+              <Button 
+                className="w-full" 
+                size="lg" 
+                variant="outline"
+                onClick={() => handleExport('zip')}
+                disabled={exporting === 'zip'}
+              >
+                {exporting === 'zip' ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Download className="mr-2 h-4 w-4" />
+                )}
                 Download ZIP
               </Button>
             </Card>
@@ -89,7 +228,7 @@ export default function DownloadPage() {
         <Card className="p-6 space-y-6">
           <div className="flex items-center justify-between">
             <h2 className="font-semibold">Project Summary</h2>
-            <Button variant="outline" size="sm">
+            <Button variant="outline" size="sm" disabled>
               <Share2 className="mr-2 h-4 w-4" />
               Share Project
             </Button>
@@ -105,23 +244,23 @@ export default function DownloadPage() {
             <TableBody>
               <TableRow>
                 <TableCell>Project Name</TableCell>
-                <TableCell>My Website Screenshots</TableCell>
+                <TableCell>{metadata.title}</TableCell>
               </TableRow>
               <TableRow>
                 <TableCell>Total Pages</TableCell>
-                <TableCell>15</TableCell>
+                <TableCell>{metadata.totalPages}</TableCell>
               </TableRow>
               <TableRow>
                 <TableCell>PDF Size</TableCell>
-                <TableCell>12.4 MB</TableCell>
+                <TableCell>{metadata.pdfSize}</TableCell>
               </TableRow>
               <TableRow>
                 <TableCell>ZIP Size</TableCell>
-                <TableCell>45.8 MB</TableCell>
+                <TableCell>{metadata.zipSize}</TableCell>
               </TableRow>
               <TableRow>
                 <TableCell>Created</TableCell>
-                <TableCell>December 3, 2024</TableCell>
+                <TableCell>{metadata.created.toLocaleDateString()}</TableCell>
               </TableRow>
             </TableBody>
           </Table>
@@ -133,8 +272,16 @@ export default function DownloadPage() {
                 Download the original screenshots in full resolution
               </p>
             </div>
-            <Button variant="outline">
-              <Image className="mr-2 h-4 w-4" />
+            <Button 
+              variant="outline"
+              onClick={() => handleExport('zip')}
+              disabled={exporting === 'zip'}
+            >
+              {exporting === 'zip' ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Image className="mr-2 h-4 w-4" />
+              )}
               Download Originals
             </Button>
           </div>
@@ -144,11 +291,11 @@ export default function DownloadPage() {
           <Button variant="outline" onClick={() => window.history.back()}>
             Back to Customization
           </Button>
-          <Button onClick={() => window.location.href = "/dashboard"}>
-            Go to Dashboard
+          <Button onClick={() => router.push('/')}>
+            Start New Project
           </Button>
         </div>
       </motion.div>
     </div>
-  );
+  )
 } 

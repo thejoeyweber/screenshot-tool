@@ -7,15 +7,10 @@
  */
 
 import { useCallback } from 'react'
+import type { UrlSession } from '@/types/session'
 
 const STORAGE_KEY_PREFIX = 'screenshot_urls_'
 const SESSION_TIMEOUT = 1000 * 60 * 60 // 1 hour
-
-export interface UrlSession {
-  baseUrl: string
-  urls: string[]
-  timestamp: number
-}
 
 export function useUrlSession() {
   const getSession = useCallback((sessionId: string): UrlSession | null => {

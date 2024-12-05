@@ -22,4 +22,6 @@ export interface SitemapResponse {
   sitemapUrls: string[];
   robotsTxtContent?: string;
   error?: string;
+  mode?: 'primary' | 'secondary' | 'extended';
+  hasMoreOptions?: boolean;
 } 

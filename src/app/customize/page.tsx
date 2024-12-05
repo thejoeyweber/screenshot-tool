@@ -1,54 +1,160 @@
+/**
+ * Customize Page
+ * 
+ * Purpose: Customize PDF output and screenshot order
+ * Functionality: Reorder screenshots, customize PDF metadata
+ */
+
 'use client'
 
-import { useState } from "react";
-import { motion } from "framer-motion";
-import { ChevronRight, GripVertical, Image as ImageIcon, Upload } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useState, useEffect } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
+import { motion } from "framer-motion"
+import { ChevronRight, GripVertical, Image as ImageIcon, Upload } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Card } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { useToast } from "@/hooks/use-toast"
+import { useUrlSession } from "@/hooks/useUrlSession"
+import type { Screenshot } from "@/types/screenshot"
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-
-interface Screenshot {
-  id: string;
-  url: string;
-  title: string;
-  thumbnail: string;
-}
-
-// Example data - replace with real screenshots
-const sampleScreenshots: Screenshot[] = [
-  {
-    id: "1",
-    url: "/",
-    title: "Homepage",
-    thumbnail: "/placeholder.jpg",
-  },
-  {
-    id: "2",
-    url: "/products",
-    title: "Products",
-    thumbnail: "/placeholder.jpg",
-  },
-  {
-    id: "3",
-    url: "/about",
-    title: "About",
-    thumbnail: "/placeholder.jpg",
-  },
-];
+} from "@/components/ui/select"
 
 export default function CustomizePage() {
-  const [screenshots, setScreenshots] = useState(sampleScreenshots);
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const { toast } = useToast()
+  const { getSession, updateSession } = useUrlSession()
+  
+  const [sessionId, setSessionId] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [screenshots, setScreenshots] = useState<Screenshot[]>([])
+  const [order, setOrder] = useState<string[]>([])
+  const [metadata, setMetadata] = useState({
+    title: '',
+    description: '',
+    template: 'modern'
+  })
+
+  // Load session data
+  useEffect(() => {
+    const sid = searchParams.get('session')
+    if (!sid) {
+      toast({
+        title: "Session Error",
+        description: "No session ID provided",
+        variant: "destructive"
+      })
+      router.push('/')
+      return
+    }
+
+    const session = getSession(sid)
+    if (!session) {
+      toast({
+        title: "Session Error",
+        description: "Invalid or expired session",
+        variant: "destructive"
+      })
+      router.push('/')
+      return
+    }
+
+    if (!session.results?.screenshots?.length) {
+      toast({
+        title: "Error",
+        description: "No screenshots found in session",
+        variant: "destructive"
+      })
+      router.push('/')
+      return
+    }
+
+    setSessionId(sid)
+    setScreenshots(session.results.screenshots)
+    setOrder(session.results.order || session.results.screenshots.map(s => s.id))
+    
+    // Load metadata if exists
+    if (session.metadata) {
+      setMetadata({
+        title: session.metadata.name || '',
+        description: session.metadata.description || '',
+        template: session.metadata.template || 'modern'
+      })
+    }
+    
+    setLoading(false)
+  }, [searchParams, getSession, router, toast])
+
+  const handleReorder = (draggedId: string, targetId: string) => {
+    const newOrder = [...order]
+    const draggedIndex = newOrder.indexOf(draggedId)
+    const targetIndex = newOrder.indexOf(targetId)
+    
+    newOrder.splice(draggedIndex, 1)
+    newOrder.splice(targetIndex, 0, draggedId)
+    
+    setOrder(newOrder)
+    
+    // Update session
+    if (sessionId) {
+      updateSession(sessionId, {
+        results: {
+          screenshots,
+          order: newOrder,
+          annotations: {}
+        }
+      })
+    }
+  }
+
+  const handleMetadataChange = (
+    key: keyof typeof metadata,
+    value: string
+  ) => {
+    const newMetadata = { ...metadata, [key]: value }
+    setMetadata(newMetadata)
+    
+    // Update session
+    if (sessionId) {
+      updateSession(sessionId, {
+        metadata: {
+          name: newMetadata.title,
+          description: newMetadata.description,
+          template: newMetadata.template,
+          saveProject: false
+        }
+      })
+    }
+  }
+
+  const handleContinue = () => {
+    if (!sessionId) return
+    router.push(`/download?session=${sessionId}`)
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="text-muted-foreground"
+        >
+          Loading...
+        </motion.div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-4">
@@ -76,34 +182,50 @@ export default function CustomizePage() {
               <TabsContent value="organize" className="space-y-4">
                 <ScrollArea className="h-[500px] pr-4">
                   <div className="space-y-2">
-                    {screenshots.map((screenshot) => (
-                      <Card
-                        key={screenshot.id}
-                        className="p-4 cursor-move hover:bg-accent/50 transition-colors"
-                      >
-                        <div className="flex items-center gap-4">
-                          <GripVertical className="h-5 w-5 text-muted-foreground" />
-                          <div className="h-16 w-16 bg-muted rounded flex items-center justify-center">
-                            <ImageIcon className="h-6 w-6 text-muted-foreground" />
+                    {order.map((id) => {
+                      const screenshot = screenshots.find(s => s.id === id)
+                      if (!screenshot) return null
+                      
+                      return (
+                        <Card
+                          key={screenshot.id}
+                          className="p-4 cursor-move hover:bg-accent/50 transition-colors"
+                          draggable
+                          onDragStart={(e) => {
+                            e.dataTransfer.setData('text/plain', screenshot.id)
+                          }}
+                          onDragOver={(e) => {
+                            e.preventDefault()
+                          }}
+                          onDrop={(e) => {
+                            e.preventDefault()
+                            const draggedId = e.dataTransfer.getData('text/plain')
+                            handleReorder(draggedId, screenshot.id)
+                          }}
+                        >
+                          <div className="flex items-center gap-4">
+                            <GripVertical className="h-5 w-5 text-muted-foreground" />
+                            <div className="h-16 w-16 bg-muted rounded flex items-center justify-center">
+                              {screenshot.imageData ? (
+                                <img
+                                  src={`data:image/jpeg;base64,${Buffer.from(screenshot.imageData).toString('base64')}`}
+                                  alt={screenshot.title}
+                                  className="w-full h-full object-cover rounded"
+                                />
+                              ) : (
+                                <ImageIcon className="h-6 w-6 text-muted-foreground" />
+                              )}
+                            </div>
+                            <div className="flex-1">
+                              <h3 className="font-medium">{screenshot.title}</h3>
+                              <p className="text-sm text-muted-foreground">
+                                {screenshot.url}
+                              </p>
+                            </div>
                           </div>
-                          <div className="flex-1">
-                            <h3 className="font-medium">{screenshot.title}</h3>
-                            <p className="text-sm text-muted-foreground">
-                              {screenshot.url}
-                            </p>
-                          </div>
-                          <Select defaultValue="include">
-                            <SelectTrigger className="w-[120px]">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="include">Include</SelectItem>
-                              <SelectItem value="exclude">Exclude</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </Card>
-                    ))}
+                        </Card>
+                      )
+                    })}
                   </div>
                 </ScrollArea>
               </TabsContent>
@@ -120,12 +242,17 @@ export default function CustomizePage() {
             <div className="space-y-4">
               <div className="space-y-2">
                 <Label>Cover Title</Label>
-                <Input defaultValue="Website Screenshots" />
+                <Input 
+                  value={metadata.title}
+                  onChange={(e) => handleMetadataChange('title', e.target.value)}
+                />
               </div>
 
               <div className="space-y-2">
                 <Label>Description</Label>
                 <Textarea
+                  value={metadata.description}
+                  onChange={(e) => handleMetadataChange('description', e.target.value)}
                   placeholder="Add a description for your PDF..."
                   className="resize-none"
                 />
@@ -143,7 +270,10 @@ export default function CustomizePage() {
 
               <div className="space-y-2">
                 <Label>Template</Label>
-                <Select defaultValue="modern">
+                <Select 
+                  value={metadata.template}
+                  onValueChange={(value) => handleMetadataChange('template', value)}
+                >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -162,12 +292,12 @@ export default function CustomizePage() {
           <Button variant="outline" onClick={() => window.history.back()}>
             Back
           </Button>
-          <Button onClick={() => window.location.href = "/download"}>
+          <Button onClick={handleContinue}>
             Continue to Download
             <ChevronRight className="ml-2 h-4 w-4" />
           </Button>
         </div>
       </motion.div>
     </div>
-  );
+  )
 } 

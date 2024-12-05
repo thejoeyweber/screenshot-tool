@@ -4,6 +4,7 @@ import { resourceService } from './resource'
 import type { BatchJob, BatchConfig, BatchJobUpdate } from '@/types/batch'
 import type { Screenshot } from '@/types/screenshot'
 import { removeDir } from '@/utils/disk'
+import { normalizeUrl } from './url'
 
 class BatchService {
   private jobs: Map<string, BatchJob> = new Map()
@@ -19,12 +20,15 @@ class BatchService {
   }
 
   async addJob(urls: string[], config: BatchConfig): Promise<string> {
+    // Normalize URLs before processing
+    const normalizedUrls = urls.map(url => normalizeUrl(url))
+    
     const jobId = nanoid()
     const session = await screenshotStorage.createSession()
 
     const job: BatchJob = {
       id: jobId,
-      urls,
+      urls: normalizedUrls,
       config,
       sessionId: session.id,
       status: 'queued',
@@ -77,7 +81,7 @@ class BatchService {
     try {
       console.log(`Processing URL: ${url}`)
       const screenshot = await captureScreen({
-        url,
+        url: normalizeUrl(url), // Normalize URL before capture
         deviceConfig: job.config.deviceConfig,
         delay: job.config.delay,
         hideSelectors: job.config.hideSelectors,

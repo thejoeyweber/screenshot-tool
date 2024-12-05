@@ -191,9 +191,9 @@ export default function SitemapPage() {
     try {
       const sessionId = createSession(url, Array.from(selectedUrls))
       
-      const setupUrl = new URL('/setup', window.location.origin)
-      setupUrl.searchParams.set('session', sessionId)
-      router.push(setupUrl.pathname + setupUrl.search)
+      const configUrl = new URL('/config', window.location.origin)
+      configUrl.searchParams.set('session', sessionId)
+      router.push(configUrl.pathname + configUrl.search)
     } catch (err) {
       setError('Failed to save selected URLs. Please try again.')
       console.error('Error saving URLs:', err)

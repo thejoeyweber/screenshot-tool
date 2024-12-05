@@ -51,12 +51,24 @@ class BatchService {
     const job = this.jobs.get(jobId)
     if (!job) return
 
-    Object.assign(job, {
+    // Create a new job object with the updates
+    const updatedJob: BatchJob = {
+      ...job,
       ...update,
       updatedAt: new Date()
-    })
+    }
 
-    this.jobs.set(jobId, job)
+    // Store the updated job
+    this.jobs.set(jobId, updatedJob)
+
+    // Debug logging
+    console.log('Updated job state:', {
+      id: updatedJob.id,
+      status: updatedJob.status,
+      progress: updatedJob.progress,
+      resultsCount: updatedJob.results?.length,
+      totalUrls: updatedJob.urls?.length
+    })
   }
 
   private async processUrl(
@@ -80,17 +92,26 @@ class BatchService {
 
     try {
       console.log(`Processing URL: ${url}`)
-      const screenshot = await captureScreen({
-        url: normalizeUrl(url), // Normalize URL before capture
-        deviceConfig: job.config.deviceConfig,
-        delay: job.config.delay,
-        hideSelectors: job.config.hideSelectors,
-        sessionId: job.sessionId!,
-        maxDimension: job.config.maxDimension,
-        quality: job.config.quality,
-        maxFileSize: job.config.maxFileSize,
-        profile: job.profile
+      // Add timeout to URL processing
+      const timeoutPromise = new Promise<Screenshot>((_, reject) => {
+        setTimeout(() => reject(new Error('URL processing timeout')), 60000) // 60s timeout
       })
+
+      const screenshot = await Promise.race([
+        captureScreen({
+          url: normalizeUrl(url),
+          deviceConfig: job.config.deviceConfig,
+          delay: job.config.delay,
+          hideSelectors: job.config.hideSelectors,
+          sessionId: job.sessionId!,
+          maxDimension: job.config.maxDimension,
+          quality: job.config.quality,
+          maxFileSize: job.config.maxFileSize,
+          profile: job.profile
+        }),
+        timeoutPromise
+      ])
+
       console.log(`Successfully captured: ${url}`)
       return screenshot
     } catch (error) {
@@ -119,33 +140,23 @@ class BatchService {
     const MAX_CONSECUTIVE_ERRORS = 3
 
     try {
-      // Skip initial resource check in development
-      if (process.env.NODE_ENV === 'production') {
-        const initialResources = await resourceService.checkResources()
-        if (!initialResources) {
-          console.log('Insufficient resources to start job, waiting...')
-          await new Promise(resolve => setTimeout(resolve, 10000)) // Wait 10s
-        }
-      }
+      // Update job status to processing
+      await this.updateJob(job.id, { 
+        status: 'processing',
+        progress: 0,
+        error: undefined
+      })
 
       // Process URLs in chunks
       for (let i = 0; i < job.urls.length && retryAttempts < MAX_RETRIES;) {
         // Check if job should stop
         if (this.shouldStop.has(job.id)) {
           console.log('Job stopped by request:', job.id)
+          await this.updateJob(job.id, {
+            status: 'failed',
+            error: 'Job cancelled by user'
+          })
           return
-        }
-
-        // Check resources before processing chunk
-        const resourcesOk = await resourceService.checkResources()
-        if (!resourcesOk) {
-          console.log('Insufficient resources, waiting before retry...')
-          await new Promise(resolve => setTimeout(resolve, 10000)) // Wait 10s before retry
-          retryAttempts++
-          if (retryAttempts >= MAX_RETRIES) {
-            throw new Error('Max retry attempts reached due to insufficient resources')
-          }
-          continue
         }
 
         const chunk = job.urls.slice(i, i + this.maxConcurrent)
@@ -173,15 +184,20 @@ class BatchService {
             retryAttempts = 0 // Reset retry attempts on success
           }
 
-          // Update progress (ensure it's between 0-100)
+          // Calculate progress ensuring it's between 0-100
           const progress = Math.min(100, Math.round((processed / total) * 100))
+          
+          // Update job with new progress and results
           await this.updateJob(job.id, {
             progress,
-            results
+            results,
+            status: processed === total ? (errors > 0 ? 'completed_with_errors' : 'completed') : 'processing'
           })
 
-          // If too many consecutive errors, pause for recovery
-          if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
+          // Move to next chunk if successful
+          if (chunkErrors === 0 || consecutiveErrors < MAX_CONSECUTIVE_ERRORS) {
+            i += chunk.length
+          } else {
             console.log('Too many consecutive errors, cooling down...')
             await new Promise(resolve => setTimeout(resolve, 10000)) // 10s cooldown
             consecutiveErrors = 0
@@ -189,51 +205,36 @@ class BatchService {
             if (retryAttempts >= MAX_RETRIES) {
               throw new Error('Max retry attempts reached due to consecutive errors')
             }
-            continue
           }
-
-          // If too many total errors, abort
-          if (errors > total * 0.3) { // 30% error threshold
-            throw new Error(`Too many failures (${errors} of ${total}), aborting batch`)
-          }
-
-          // Only increment i if we successfully processed the chunk
-          i += this.maxConcurrent
-        } catch (chunkError) {
-          console.error('Chunk processing error:', chunkError)
+        } catch (error) {
+          console.error('Chunk processing error:', error)
           retryAttempts++
+          await new Promise(resolve => setTimeout(resolve, 5000)) // 5s cooldown
+          
           if (retryAttempts >= MAX_RETRIES) {
-            throw chunkError
+            throw error
           }
-          await new Promise(resolve => setTimeout(resolve, 5000)) // Wait 5s before retry
-          continue
         }
       }
 
-      // Check if we completed due to max retries
-      if (retryAttempts >= MAX_RETRIES) {
-        throw new Error('Job terminated due to max retry attempts')
-      }
-
+      // Final status update
       const finalStatus = errors > 0 ? 'completed_with_errors' : 'completed'
       await this.updateJob(job.id, {
         status: finalStatus,
-        error: errors > 0 ? `${errors} URLs failed to process` : undefined,
         progress: 100,
-        results
+        results,
+        error: errors > 0 ? `${errors} URLs failed to process` : undefined
       })
+
     } catch (error) {
       console.error('Job processing error:', error)
-      // Ensure job is marked as failed
       await this.updateJob(job.id, {
         status: 'failed',
-        error: error instanceof Error ? error.message : 'Unknown error',
-        progress: (processed / total) * 100,
-        results
+        error: error instanceof Error ? error.message : 'Unknown error occurred',
+        progress: Math.round((processed / total) * 100)
       })
       throw error
     } finally {
-      // Stop monitoring when job is done
       if (process.env.NODE_ENV === 'production') {
         resourceService.stopMonitoring()
       }
@@ -261,7 +262,11 @@ class BatchService {
         }
 
         this.activeJobs.add(job.id)
-        await this.updateJob(job.id, { status: 'processing' })
+        await this.updateJob(job.id, { 
+          status: 'processing',
+          progress: 0,
+          error: undefined
+        })
 
         try {
           await this.processJob(job)

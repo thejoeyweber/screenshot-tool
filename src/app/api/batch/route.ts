@@ -26,12 +26,22 @@ const createBatchSchema = z.object({
 function sanitizeJob(job: any) {
   if (!job) return null
   
+  // Ensure we return the complete job state
   return {
-    ...job,
-    results: job.results?.map((result: any) => ({
-      ...result,
-      imageData: result.imageData ? `[Binary data: ${result.imageData.length} bytes]` : undefined
-    }))
+    id: job.id,
+    status: job.status,
+    progress: job.progress,
+    error: job.error,
+    urls: job.urls || [],
+    results: (job.results || []).map((result: any) => ({
+      id: result.id,
+      url: result.url,
+      title: result.title,
+      error: result.error,
+      metadata: result.metadata
+    })),
+    createdAt: job.createdAt,
+    updatedAt: job.updatedAt
   }
 }
 
@@ -78,6 +88,16 @@ export async function GET(req: Request) {
       { status: 404 }
     )
   }
+
+  // Add debug logging
+  console.log('Job state:', {
+    id: job.id,
+    status: job.status,
+    progress: job.progress,
+    resultsCount: job.results?.length,
+    totalUrls: job.urls?.length,
+    error: job.error
+  })
 
   return NextResponse.json(sanitizeJob(job))
 } 

@@ -129,6 +129,7 @@ export default function GeneratePage() {
   // Poll for job status
   useEffect(() => {
     if (!currentJobId || !isPolling) return
+    console.log('Starting polling for job:', currentJobId)
 
     const interval = setInterval(async () => {
       try {
@@ -136,26 +137,27 @@ export default function GeneratePage() {
         if (!response.ok) throw new Error('Failed to get status')
         const job = await response.json()
 
-        // Update current job with normalized URLs
-        if (job.urls) {
-          job.urls = job.urls.map((url: string) => normalizeUrl(url))
-        }
-        if (job.results) {
-          job.results = job.results.map((r: any) => ({
-            ...r,
-            url: normalizeUrl(r.url)
-          }))
-        }
+        console.log('Received job update:', {
+          status: job.status,
+          progress: job.progress,
+          resultsCount: job.results?.length
+        })
 
+        // Always update current job first
         setCurrentJob(job)
 
-        // Stop polling if job is complete or failed
+        // Handle completion states
         if (['completed', 'failed', 'completed_with_errors'].includes(job.status)) {
+          console.log('Job completed with status:', job.status)
+          
+          // Stop polling immediately
+          clearInterval(interval)
           setIsPolling(false)
           
           // Update session with results if we have any
-          if (sessionId && (job.status === 'completed' || job.status === 'completed_with_errors')) {
-            updateSession(sessionId, {
+          if (sessionId && job.results?.length > 0) {
+            console.log('Updating session with results:', job.results.length)
+            await updateSession(sessionId, {
               results: {
                 screenshots: job.results,
                 order: job.results.map((r: { id: string }) => r.id),
@@ -163,29 +165,35 @@ export default function GeneratePage() {
               }
             })
 
-            // Auto-continue to customize page after a short delay
-            if (job.status === 'completed') {
+            // Show completion message
+            toast({
+              title: job.status === 'failed' ? 'Process Failed' : 'Process Complete',
+              description: job.error || `Processed ${job.results.length} of ${job.urls.length} URLs`,
+              variant: job.status === 'failed' ? 'destructive' : 'default'
+            })
+
+            // Only auto-continue if we have all results
+            if (job.status === 'completed' && job.results.length === job.urls.length) {
+              console.log('Auto-continuing to customize page')
               setTimeout(() => {
                 router.push(`/customize?session=${sessionId}`)
-              }, 1000)
+              }, 2000)
             }
           }
-
-          // Clear job after completion
-          setTimeout(() => {
-            setCurrentJobId(null)
-            setCurrentJob(null)
-          }, 2000)
         }
       } catch (err) {
         console.error('Status polling error:', err)
         setError(err instanceof Error ? err.message : 'Failed to get job status')
         setIsPolling(false)
+        clearInterval(interval)
       }
-    }, 2000)
+    }, 1000)
 
-    return () => clearInterval(interval)
-  }, [currentJobId, isPolling, sessionId, updateSession, router])
+    return () => {
+      console.log('Cleaning up polling interval')
+      clearInterval(interval)
+    }
+  }, [currentJobId, isPolling, sessionId, updateSession, router, toast])
 
   const handleRetry = async () => {
     if (!currentJobId) return
@@ -209,6 +217,21 @@ export default function GeneratePage() {
   const handleContinue = () => {
     if (!sessionId) return
     router.push(`/customize?session=${sessionId}`)
+  }
+
+  // Update the UI rendering for better status display
+  const getUrlStatus = (url: string, index: number) => {
+    if (!currentJob) return 'pending'
+    
+    const result = currentJob.results?.find(r => r.url === url)
+    if (result) return 'completed'
+    
+    const isProcessing = 
+      currentJob.status === 'processing' &&
+      index >= (currentJob.results?.length || 0) &&
+      index < (currentJob.results?.length || 0) + 3
+    
+    return isProcessing ? 'processing' : 'pending'
   }
 
   if (loading) {
@@ -256,12 +279,8 @@ export default function GeneratePage() {
           <ScrollArea className="h-[300px] pr-4">
             <div className="space-y-2">
               {currentJob?.urls.map((url, index) => {
+                const status = getUrlStatus(url, index)
                 const result = currentJob.results.find(r => r.url === url) as BatchResult | undefined
-                const isProcessing = !result && 
-                  index >= currentJob.results.length - 3 && 
-                  index < currentJob.results.length && 
-                  currentJob.status === 'processing'
-                const status = result ? 'completed' : isProcessing ? 'processing' : 'pending'
                 
                 return (
                   <div

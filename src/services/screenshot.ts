@@ -171,6 +171,7 @@ export async function captureScreen({
       ] : [])
     ])
 
+    // Hide any elements specified in hideSelectors
     if (hideSelectors.length > 0) {
       console.log('Hiding elements:', hideSelectors)
       await Promise.all(hideSelectors.map(selector => 
@@ -183,6 +184,28 @@ export async function captureScreen({
         }, selector)
       ))
     }
+
+    /**
+     * Extract link data, including bounding rectangle
+     */
+    console.log('Collecting links...')
+    const links = await page.evaluate(() => {
+      const elements = Array.from(document.querySelectorAll('a'))
+      return elements.map(el => {
+        const rect = el.getBoundingClientRect()
+        return {
+          href: el.href,
+          text: el.innerText,
+          rect: {
+            x: rect.x,
+            y: rect.y,
+            width: rect.width,
+            height: rect.height
+          }
+        }
+      })
+    })
+    console.log('Captured links:', JSON.stringify(links, null, 2))
 
     // Take screenshot
     console.log('Taking screenshot')
@@ -210,6 +233,7 @@ export async function captureScreen({
       deviceConfig,
       timestamp: new Date().toISOString(),
       dimensions: await sharp(processedBuffer).metadata(),
+      links, // <--- storing captured link data
       ...(profile && { profileData: profile })
     })
     console.log('Saved to storage:', file.path)
@@ -228,7 +252,18 @@ export async function captureScreen({
         },
         storagePath: file.path,
         sessionId: sessionId,
-        ...(profile && { profileData: profile })
+        links, // <--- placing it in Screenshot's metadata
+        ...(profile && { 
+          profileData: {
+            name: profile.url,
+            description: `Response: ${profile.response.status}, Resources: ${profile.metrics.totalResources}`,
+            settings: {
+              needsAuthentication: profile.recommendations.needsAuthentication,
+              needsCookieHandling: profile.recommendations.needsCookieHandling,
+              suggestedDelay: profile.recommendations.suggestedDelay
+            }
+          }
+        })
       }
     }
 
@@ -245,4 +280,4 @@ export async function captureScreen({
 }
 
 // Export storage service for direct access if needed
-export const screenshotStorage = storageService 
+export const screenshotStorage = storageService

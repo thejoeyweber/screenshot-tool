@@ -35,7 +35,7 @@ export function normalizeUrl(url: string): string {
 export function validateUrl(url: string): UrlValidationResult {
   try {
     const originalUrl = url
-    let normalizedUrl = normalizeUrl(url)
+    const normalizedUrl = normalizeUrl(url)
     
     // Validate URL format
     new URL(normalizedUrl)

@@ -1,3 +1,14 @@
+export interface StorageMetadata {
+  title?: string
+  description?: string
+  contentType?: string
+  dimensions?: {
+    width: number
+    height: number
+  }
+  [key: string]: unknown
+}
+
 export interface StorageConfig {
   basePath: string
   maxAge: number  // in milliseconds
@@ -18,7 +29,7 @@ export interface StorageFile {
   createdAt: Date
   expiresAt: Date
   sessionId: string
-  metadata?: Record<string, any>
+  metadata?: StorageMetadata
 }
 
 export interface StorageStats {

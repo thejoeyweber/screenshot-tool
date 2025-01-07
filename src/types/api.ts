@@ -16,7 +16,11 @@ export interface ValidationResult {
   normalizedUrl?: string;
 }
 
-export interface UrlValidationResponse extends ValidationResult {}
+// Extend ValidationResult with additional URL-specific fields if needed
+export interface UrlValidationResponse extends ValidationResult {
+  urlType?: 'http' | 'https' | 'relative';
+  baseUrl?: string;
+}
 
 export interface SitemapResponse {
   sitemapUrls: string[];

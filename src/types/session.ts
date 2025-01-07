@@ -5,6 +5,7 @@
  */
 
 import type { Screenshot } from '@/types/screenshot'
+import type { Annotation } from './screenshot'
 
 export interface ProjectMetadata {
   name: string
@@ -29,7 +30,7 @@ export interface UrlSession {
   results?: {
     order?: string[]
     screenshots?: Screenshot[]
-    annotations?: Record<string, any>
+    annotations?: Record<string, Annotation[]>
   }
   currentJobId?: string
 }

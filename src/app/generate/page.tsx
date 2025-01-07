@@ -8,7 +8,7 @@
 'use client'
 
 import { useState, useEffect } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
+import { useRouter, useSearchParams, ReadonlyURLSearchParams } from "next/navigation"
 import { motion } from "framer-motion"
 import { AlertCircle, CheckCircle2, ChevronRight, Loader2, XCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -22,6 +22,7 @@ import type { BatchJob } from "@/types/batch"
 import type { Screenshot } from "@/types/screenshot"
 import { normalizeUrl } from '@/services/url'
 import { deviceConfigs, type DeviceName } from '@/config/devices'
+import { SearchParamsProvider } from "@/components/providers/SearchParamsProvider"
 
 interface BatchResult extends Screenshot {
   error?: string
@@ -41,9 +42,12 @@ function StatusIcon({ status }: { status: string }) {
   }
 }
 
-export default function GeneratePage() {
+interface GeneratePageContentProps {
+  searchParams: ReadonlyURLSearchParams
+}
+
+function GeneratePageContent({ searchParams }: GeneratePageContentProps) {
   const router = useRouter()
-  const searchParams = useSearchParams()
   const { toast } = useToast()
   const { getSession, updateSession } = useUrlSession()
   
@@ -338,5 +342,15 @@ export default function GeneratePage() {
         </div>
       </motion.div>
     </div>
+  )
+}
+
+export default function GeneratePage() {
+  return (
+    <SearchParamsProvider>
+      {(searchParams) => {
+        return <GeneratePageContent searchParams={searchParams} />
+      }}
+    </SearchParamsProvider>
   )
 } 

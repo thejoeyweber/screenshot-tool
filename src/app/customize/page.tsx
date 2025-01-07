@@ -8,7 +8,7 @@
 'use client'
 
 import { useState, useEffect } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
+import { useRouter, useSearchParams, ReadonlyURLSearchParams } from "next/navigation"
 import { motion } from "framer-motion"
 import { ChevronRight, GripVertical, Image as ImageIcon, Upload } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -30,10 +30,15 @@ import {
 } from "@/components/ui/select"
 import { ImagePreview } from '@/components/screenshot/ImagePreview'
 import { ChevronLeft } from 'lucide-react'
+import Image from 'next/image'
+import { SearchParamsProvider } from "@/components/providers/SearchParamsProvider"
 
-export default function CustomizePage() {
+interface CustomizePageContentProps {
+  searchParams: ReadonlyURLSearchParams
+}
+
+function CustomizePageContent({ searchParams }: CustomizePageContentProps) {
   const router = useRouter()
-  const searchParams = useSearchParams()
   const { toast } = useToast()
   const { getSession, updateSession } = useUrlSession()
   
@@ -216,12 +221,14 @@ export default function CustomizePage() {
                         >
                           <div className="flex items-center gap-4">
                             <GripVertical className="h-5 w-5 text-muted-foreground" />
-                            <div className="h-16 w-16 bg-muted rounded flex items-center justify-center">
+                            <div className="h-16 w-16 bg-muted rounded flex items-center justify-center relative">
                               {screenshot.imageData ? (
-                                <img
+                                <Image
                                   src={`data:image/jpeg;base64,${Buffer.from(screenshot.imageData).toString('base64')}`}
                                   alt={screenshot.title}
-                                  className="w-full h-full object-cover rounded"
+                                  fill
+                                  className="object-cover rounded"
+                                  sizes="64px"
                                 />
                               ) : (
                                 <ImageIcon className="h-6 w-6 text-muted-foreground" />
@@ -342,5 +349,15 @@ export default function CustomizePage() {
         </div>
       </motion.div>
     </div>
+  )
+}
+
+export default function CustomizePage() {
+  return (
+    <SearchParamsProvider>
+      {(searchParams) => {
+        return <CustomizePageContent searchParams={searchParams} />
+      }}
+    </SearchParamsProvider>
   )
 } 

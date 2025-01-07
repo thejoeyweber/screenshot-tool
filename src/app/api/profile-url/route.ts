@@ -44,6 +44,18 @@ interface SiteProfile {
   }
 }
 
+interface PageMetrics {
+  initialHeight?: number
+  initialWidth?: number
+  scripts: number
+  images: number
+  fonts: number
+  hasCookieConsent: boolean
+  hasAnalytics: boolean
+  hasAds: boolean
+  hasAuthentication: boolean
+}
+
 async function profileUrl(url: string): Promise<SiteProfile> {
   console.log('Profiling URL:', url)
   const fetchStart = Date.now()
@@ -185,7 +197,7 @@ async function profileUrl(url: string): Promise<SiteProfile> {
 }
 
 function calculateSuggestedDelay(
-  metrics: any,
+  metrics: PageMetrics,
   resourceCount: number
 ): number {
   let delay = 1000 // Base delay
@@ -199,7 +211,7 @@ function calculateSuggestedDelay(
 }
 
 function isComplexPage(
-  metrics: any,
+  metrics: PageMetrics,
   resourceCount: number
 ): boolean {
   return (
@@ -212,7 +224,7 @@ function isComplexPage(
 
 function generateWarnings(
   headers: Record<string, string>,
-  metrics: any,
+  metrics: PageMetrics,
   resourceCount: number
 ): string[] {
   const warnings: string[] = []

@@ -8,7 +8,7 @@
 'use client'
 
 import { useState, useEffect } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
+import { useRouter, useSearchParams, ReadonlyURLSearchParams } from "next/navigation"
 import { motion } from "framer-motion"
 import { ChevronRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -26,10 +26,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { SearchParamsProvider } from "@/components/providers/SearchParamsProvider"
 
-export default function SetupPage() {
+interface SetupPageContentProps {
+  searchParams: ReadonlyURLSearchParams
+}
+
+function SetupPageContent({ searchParams }: SetupPageContentProps) {
   const router = useRouter()
-  const searchParams = useSearchParams()
   const { toast } = useToast()
   const { getSession, updateSession } = useUrlSession()
   
@@ -215,5 +219,15 @@ export default function SetupPage() {
         </div>
       </motion.div>
     </div>
+  )
+}
+
+export default function SetupPage() {
+  return (
+    <SearchParamsProvider>
+      {(searchParams) => {
+        return <SetupPageContent searchParams={searchParams} />
+      }}
+    </SearchParamsProvider>
   )
 } 

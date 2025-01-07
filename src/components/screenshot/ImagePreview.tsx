@@ -5,6 +5,7 @@ import type { Screenshot } from '@/types/screenshot'
 import { Button } from '@/components/ui/button'
 import { ZoomIn, ZoomOut, Maximize2, Minimize2, RotateCcw, X, ChevronLeft, ChevronRight } from 'lucide-react'
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch'
+import Image from 'next/image'
 
 interface ImagePreviewProps {
   screenshot: Screenshot
@@ -169,8 +170,8 @@ export function ImagePreview({
               >
                 <div className="min-h-full flex flex-col items-center">
                   {imagePath ? (
-                    <img
-                      ref={imageRef}
+                    <Image
+                      ref={imageRef as React.RefObject<HTMLImageElement>}
                       src={imagePath}
                       alt={screenshot.title || screenshot.url}
                       className="w-full h-auto object-contain"
@@ -179,6 +180,10 @@ export function ImagePreview({
                         maxWidth: '100%',
                         alignSelf: 'flex-start'
                       }}
+                      width={1920}
+                      height={1080}
+                      priority
+                      unoptimized // Since we're dealing with dynamic screenshots
                     />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center text-muted-foreground">

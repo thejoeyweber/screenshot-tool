@@ -6,10 +6,11 @@
 
 import { useEffect, useRef } from 'react'
 import type { Screenshot } from '@/types/screenshot'
+import type { Annotation } from '@/types/screenshot'
 
 interface ScreenshotCanvasProps {
   screenshot: Screenshot
-  onAnnotate?: (annotation: any) => void
+  onAnnotate?: (annotation: Annotation) => void
 }
 
 export const ScreenshotCanvas = ({ screenshot, onAnnotate }: ScreenshotCanvasProps) => {

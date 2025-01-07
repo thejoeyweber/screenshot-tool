@@ -2,6 +2,9 @@
  * Drizzle Configuration
  */
 import type { Config } from 'drizzle-kit'
+import * as dotenv from 'dotenv'
+
+dotenv.config()
 
 export default {
   schema: './src/db/schema/*',
@@ -11,9 +14,9 @@ export default {
     connectionString: process.env.DATABASE_URL,
   } : {
     host: process.env.DB_HOST || 'localhost',
-    port: Number(process.env.DB_PORT) || 5432,
-    user: process.env.DB_USER,
-    password: process.env.DB_PASSWORD,
+    port: parseInt(process.env.DB_PORT || '5432'),
+    user: process.env.DB_USER || 'postgres',
+    password: process.env.DB_PASSWORD || 'postgres',
     database: process.env.DB_NAME || 'screenshot_tool',
   },
   verbose: true,

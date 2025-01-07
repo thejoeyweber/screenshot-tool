@@ -14,7 +14,7 @@ interface TestResult {
   name: string
   status: 'running' | 'success' | 'error'
   message?: string
-  data?: any
+  data?: Record<string, unknown>
 }
 
 function StatusIcon({ status }: { status: string }) {
@@ -96,7 +96,7 @@ export default function BatchTestPage() {
     return () => clearInterval(interval)
   }, [currentJobId, isPolling])
 
-  const runTest = async (name: string, fn: () => Promise<any>) => {
+  const runTest = async (name: string, fn: () => Promise<Record<string, unknown>>) => {
     addResult({ name, status: 'running' })
     try {
       const data = await fn()

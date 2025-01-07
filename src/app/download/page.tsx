@@ -8,12 +8,12 @@
 'use client'
 
 import { useState, useEffect } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
+import { useRouter, ReadonlyURLSearchParams } from "next/navigation"
 import { motion } from "framer-motion"
 import {
   Download,
   FileDown,
-  Image,
+  ImageIcon,
   FileText,
   File,
   Share2,
@@ -31,10 +31,15 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import Image from 'next/image'
+import { SearchParamsProvider } from "@/components/providers/SearchParamsProvider"
 
-export default function DownloadPage() {
+interface DownloadPageContentProps {
+  searchParams: ReadonlyURLSearchParams
+}
+
+function DownloadPageContent({ searchParams }: DownloadPageContentProps) {
   const router = useRouter()
-  const searchParams = useSearchParams()
   const { toast } = useToast()
   const { getSession } = useUrlSession()
   
@@ -319,7 +324,7 @@ export default function DownloadPage() {
               {exporting === 'zip' ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : (
-                <Image className="mr-2 h-4 w-4" />
+                <ImageIcon className="mr-2 h-4 w-4" />
               )}
               Download Originals
             </Button>
@@ -336,5 +341,15 @@ export default function DownloadPage() {
         </div>
       </motion.div>
     </div>
+  )
+}
+
+export default function DownloadPage() {
+  return (
+    <SearchParamsProvider>
+      {(searchParams) => {
+        return <DownloadPageContent searchParams={searchParams} />
+      }}
+    </SearchParamsProvider>
   )
 } 

@@ -11,6 +11,28 @@ export interface DeviceConfig {
   isMobile: boolean
 }
 
+/**
+ * Defines the shape for each link discovered on the webpage
+ */
+export interface LinkMetadata {
+  href: string
+  text: string
+  rect: {
+    x: number
+    y: number
+    width: number
+    height: number
+  }
+}
+
+export interface ProfileData {
+  name?: string
+  description?: string
+  settings?: {
+    [key: string]: string | number | boolean
+  }
+}
+
 export interface Screenshot {
   id: string
   url: string
@@ -25,7 +47,11 @@ export interface Screenshot {
     }
     storagePath?: string
     sessionId?: string
-    profileData?: any
+    profileData?: ProfileData
+    /**
+     * Array of link metadata discovered on the webpage
+     */
+    links?: LinkMetadata[]
   }
   annotations?: Annotation[]
 }
@@ -49,4 +75,4 @@ export interface CaptureProgress {
   message?: string
   retryCount?: number
   timestamp: Date
-} 
+}

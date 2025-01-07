@@ -8,7 +8,7 @@
 'use client'
 
 import { useState, useEffect } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
+import { useRouter, useSearchParams, ReadonlyURLSearchParams } from "next/navigation"
 import { motion } from "framer-motion"
 import { ChevronRight, Monitor, Smartphone, Tablet } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -28,6 +28,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Slider } from "@/components/ui/slider"
+import { SearchParamsProvider } from "@/components/providers/SearchParamsProvider"
 
 interface DeviceSelectorProps {
   value: DeviceName
@@ -144,9 +145,12 @@ function SettingsForm({
   )
 }
 
-export default function ConfigPage() {
+interface ConfigPageContentProps {
+  searchParams: ReadonlyURLSearchParams
+}
+
+function ConfigPageContent({ searchParams }: ConfigPageContentProps) {
   const router = useRouter()
-  const searchParams = useSearchParams()
   const { toast } = useToast()
   const { getSession, updateSession } = useUrlSession()
   
@@ -334,5 +338,15 @@ export default function ConfigPage() {
         </div>
       </motion.div>
     </div>
+  )
+}
+
+export default function ConfigPage() {
+  return (
+    <SearchParamsProvider>
+      {(searchParams) => {
+        return <ConfigPageContent searchParams={searchParams} />
+      }}
+    </SearchParamsProvider>
   )
 } 

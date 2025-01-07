@@ -8,8 +8,8 @@
 
 'use client'
 
-import { useEffect, useState } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
+import { useEffect, useState, useCallback } from "react"
+import { useRouter, useSearchParams, ReadonlyURLSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -19,6 +19,8 @@ import { Switch } from "@/components/ui/switch"
 import { fetchSitemap, organizeUrlTree, type SitemapUrl } from "@/services/sitemap"
 import { UrlTree } from "@/components/sitemap/UrlTree"
 import { useUrlSession } from "@/hooks/useUrlSession"
+import { SearchParamsProvider } from "@/components/providers/SearchParamsProvider"
+import { useToast } from "@/hooks/use-toast"
 
 interface ErrorDisplay {
   title: string
@@ -60,9 +62,13 @@ function getErrorDisplay(error: string, errorType?: string): ErrorDisplay {
   }
 }
 
-export default function SitemapPage() {
+interface SitemapPageContentProps {
+  searchParams: ReadonlyURLSearchParams
+}
+
+function SitemapPageContent({ searchParams }: SitemapPageContentProps) {
   const router = useRouter()
-  const searchParams = useSearchParams()
+  const { toast } = useToast()
   const initialUrl = searchParams.get('url')
   const { createSession } = useUrlSession()
   
@@ -77,7 +83,7 @@ export default function SitemapPage() {
   const [searchMode, setSearchMode] = useState<'primary' | 'secondary' | 'extended'>('primary')
   const [hasMoreOptions, setHasMoreOptions] = useState(false)
 
-  const loadSitemap = async (targetUrl: string, sitemaps?: Set<string>) => {
+  const loadSitemap = useCallback(async (targetUrl: string, sitemaps?: Set<string>) => {
     setLoading(true)
     setError(undefined)
     setErrorType(undefined)
@@ -121,7 +127,7 @@ export default function SitemapPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [searchMode])
 
   useEffect(() => {
     if (!initialUrl) {
@@ -130,7 +136,7 @@ export default function SitemapPage() {
     }
 
     loadSitemap(initialUrl)
-  }, [initialUrl])
+  }, [initialUrl, loadSitemap])
 
   const handleUrlSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -328,5 +334,15 @@ export default function SitemapPage() {
         />
       )}
     </div>
+  )
+}
+
+export default function SitemapPage() {
+  return (
+    <SearchParamsProvider>
+      {(searchParams) => {
+        return <SitemapPageContent searchParams={searchParams} />
+      }}
+    </SearchParamsProvider>
   )
 } 

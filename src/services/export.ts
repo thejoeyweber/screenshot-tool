@@ -39,7 +39,8 @@ async function exportAsZip(
         title: screenshot.title,
         createdAt: screenshot.createdAt,
         device: screenshot.metadata.device,
-        viewport: screenshot.metadata.viewport
+        viewport: screenshot.metadata.viewport,
+        links: screenshot.metadata.links || []
       }
       zip.file(`screenshot-${index + 1}.json`, JSON.stringify(metadata, null, 2))
     }
@@ -69,6 +70,7 @@ async function exportAsPdf(
 
     // Add screenshots
     screenshots.forEach((screenshot, index) => {
+      // First page with the screenshot
       doc.addPage({
         size: [
           screenshot.metadata.viewport.width,
@@ -76,7 +78,6 @@ async function exportAsPdf(
         ]
       })
 
-      // Add screenshot
       doc.image(screenshot.imageData, 0, 0, {
         fit: [
           screenshot.metadata.viewport.width,
@@ -84,7 +85,7 @@ async function exportAsPdf(
         ]
       })
 
-      // Add metadata if requested
+      // If metadata is requested, create a separate page summarizing info
       if (options.metadata) {
         doc.addPage()
         doc.fontSize(14).text(`Screenshot ${index + 1} Details`, { align: 'center' })
@@ -95,6 +96,42 @@ async function exportAsPdf(
         doc.text(`Captured: ${screenshot.createdAt.toLocaleString()}`)
         doc.text(`Device: ${screenshot.metadata.device}`)
         doc.text(`Viewport: ${screenshot.metadata.viewport.width}x${screenshot.metadata.viewport.height}`)
+
+        // List out links found on the page
+        doc.moveDown()
+        doc.fontSize(12).text('Links discovered on page:', { underline: true })
+        const foundLinks = screenshot.metadata.links || []
+        if (foundLinks.length === 0) {
+          doc.text('No links found.')
+        } else {
+          foundLinks.forEach((linkObj) => {
+            // Create clickable link text
+            const linkText = `${linkObj.text} (${linkObj.href})`
+            const textOptions = {
+              underline: true,
+              color: 'blue'
+            }
+            
+            // Get the current Y position
+            const currentY = doc.y
+            
+            // Add the text first
+            doc.text(linkText, {
+              ...textOptions,
+              continued: false
+            })
+            
+            // Calculate text width and height
+            const textWidth = doc.widthOfString(linkText)
+            const textHeight = doc.currentLineHeight()
+            
+            // Add the link annotation
+            doc.link(doc.x, currentY, textWidth, textHeight, linkObj.href)
+            
+            // Add some spacing
+            doc.moveDown(0.5)
+          })
+        }
       }
     })
 
@@ -118,4 +155,4 @@ export async function exportAsJSON(screenshot: Screenshot): Promise<string> {
 export async function shareScreenshot(screenshot: Screenshot): Promise<string> {
   // Implementation will be added
   throw new Error('Not implemented')
-} 
+}

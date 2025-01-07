@@ -6,12 +6,20 @@ import path from 'path'
 import crypto from 'crypto'
 import fs from 'fs/promises'
 import { cleanupExpired, getStorageStats } from '@/utils/disk'
-import type { StorageConfig, StorageSession, StorageFile, StorageStats } from '@/types/storage'
+import type { StorageConfig, StorageSession, StorageFile, StorageStats, StorageMetadata } from '@/types/storage'
 
 const DEFAULT_CONFIG: StorageConfig = {
   basePath: path.join(process.cwd(), 'tmp', 'screenshots'),
   maxAge: 24 * 60 * 60 * 1000, // 24 hours
   maxSize: 1024 * 1024 * 1024 // 1GB
+}
+
+interface FileMetadata {
+  metadata?: Record<string, unknown>
+}
+
+interface StorageFileMetadata {
+  metadata?: Record<string, unknown>
 }
 
 export class StorageService {
@@ -137,7 +145,7 @@ export class StorageService {
   async saveFile(
     sessionId: string,
     data: Buffer,
-    metadata?: Record<string, any>
+    metadata?: Record<string, unknown>
   ): Promise<StorageFile> {
     const session = this.sessions.get(sessionId);
     if (!session) {
@@ -315,63 +323,13 @@ export class StorageService {
   }
 
   async getSessionFiles(sessionId: string): Promise<StorageFile[]> {
-    if (!this.initialized) {
-      await this.init();
-    }
-
-    console.log('Getting files for session:', sessionId);
-    const session = this.sessions.get(sessionId);
+    const session = await this.getSession(sessionId);
     if (!session) {
-      console.log('Session not found in memory:', sessionId);
-      // Check if directory exists anyway
-      const sessionPath = path.join(this.config.basePath, sessionId);
-      try {
-        const stats = await fs.stat(sessionPath);
-        if (stats.isDirectory()) {
-          console.log('Session directory exists but not in memory, recreating session');
-          const createdAt = stats.birthtime;
-          const expiresAt = new Date(createdAt.getTime() + this.config.maxAge);
-          
-          const recreatedSession = {
-            id: sessionId,
-            path: sessionPath,
-            createdAt,
-            expiresAt
-          };
-          this.sessions.set(sessionId, recreatedSession);
-          
-          // Now get the files
-          const files = await fs.readdir(sessionPath);
-          const result: StorageFile[] = [];
-          
-          for (const filename of files) {
-            if (filename.endsWith('.jpg')) {
-              const filePath = path.join(sessionPath, filename);
-              const fileStats = await fs.stat(filePath);
-              
-              result.push({
-                filename,
-                path: filePath,
-                size: fileStats.size,
-                createdAt: fileStats.birthtime,
-                expiresAt,
-                sessionId,
-                metadata: {}
-              });
-            }
-          }
-          
-          console.log(`Found ${result.length} files in session directory`);
-          return result;
-        }
-      } catch (error) {
-        console.error('Error checking session directory:', error);
-      }
       throw new Error('Session not found');
     }
 
-    const files = await fs.readdir(session.path);
     const result: StorageFile[] = [];
+    const files = await fs.readdir(session.path);
     
     for (const filename of files) {
       if (filename.endsWith('.jpg')) {
@@ -385,13 +343,21 @@ export class StorageService {
           createdAt: stats.birthtime,
           expiresAt: session.expiresAt,
           sessionId,
-          metadata: {}
+          metadata: {} as Record<string, unknown>
         });
       }
     }
     
     console.log(`Found ${result.length} files in session`);
     return result;
+  }
+
+  async setMetadata(
+    sessionId: string,
+    filename: string,
+    metadata: StorageMetadata
+  ): Promise<void> {
+    // Implementation
   }
 }
 

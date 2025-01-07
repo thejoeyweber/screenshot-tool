@@ -4,6 +4,31 @@ import { deviceConfigs } from '@/config/devices'
 import { validateUrl } from '@/services/url-validation'
 import { z } from 'zod'
 
+interface BatchJob {
+  id: string
+  status: 'processing' | 'completed' | 'failed' | 'queued' | 'completed_with_errors'
+  progress: number
+  error?: string
+  urls: string[]
+  results: Array<{
+    id: string
+    url: string
+    title: string
+    error?: string
+    metadata?: {
+      device: string
+      viewport: {
+        width: number
+        height: number
+      }
+      storagePath?: string
+      sessionId?: string
+    }
+  }>
+  createdAt: Date
+  updatedAt: Date
+}
+
 // Validation schemas
 const createBatchSchema = z.object({
   urls: z.array(z.string().url()),
@@ -24,7 +49,7 @@ const createBatchSchema = z.object({
 })
 
 // Strip binary data from response
-function sanitizeJob(job: any) {
+function sanitizeJob(job: BatchJob | null): Partial<BatchJob> | null {
   if (!job) return null
   
   // Ensure we return the complete job state
@@ -34,7 +59,7 @@ function sanitizeJob(job: any) {
     progress: job.progress,
     error: job.error,
     urls: job.urls || [],
-    results: (job.results || []).map((result: any) => ({
+    results: (job.results || []).map(result => ({
       id: result.id,
       url: result.url,
       title: result.title,

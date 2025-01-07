@@ -160,7 +160,7 @@ async function handlePdfExport(files: StorageFile[], storage: StorageService, se
 interface ExportMetadata {
   filename: string
   createdAt: Date
-  metadata: Record<string, any>
+  metadata: Record<string, unknown>
 }
 
 async function handleZipExport(files: StorageFile[], storage: StorageService, sessionId: string, options: { metadata?: boolean }) {
@@ -211,6 +211,6 @@ async function handleZipExport(files: StorageFile[], storage: StorageService, se
     })
   } catch (error) {
     console.error('ZIP export: Fatal error:', error)
-    throw error // Let the main handler catch this
+    throw error
   }
 } 
